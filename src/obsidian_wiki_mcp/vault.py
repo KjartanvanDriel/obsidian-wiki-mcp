@@ -72,7 +72,7 @@ class Vault:
         """Get all markdown files in the vault, excluding _ prefixed dirs that aren't pages."""
         files = []
         # Non-wiki files/dirs to skip
-        skip_dirs = {".claude", ".obsidian", ".git", "node_modules", "daily"}
+        skip_dirs = {".claude", ".obsidian", ".git", "node_modules", "daily", "to_ingest"}
         skip_files = {"CLAUDE.md", "README.md", "TODO.md"}
         for p in self.root.rglob("*.md"):
             rel = p.relative_to(self.root)
@@ -270,6 +270,7 @@ class Vault:
         limit: int = 20,
     ) -> dict:
         """Unified search — full-text and/or metadata filters."""
+        limit = min(limit, 100)
         pages = self._all_pages()
         results = []
 
@@ -361,16 +362,23 @@ class Vault:
         return result
 
     def _find_backlinks(self, title: str) -> list[str]:
-        """Find all pages that link to the given title."""
+        """Find all pages that link to the given title or its slug."""
         backlinks = []
-        pattern = re.compile(r"\[\[" + re.escape(title) + r"(\|[^\]]*)?\]\]", re.IGNORECASE)
+        slug = slugify(title)
+
+        # Match [[title...]], [[slug...]], or [[path/slug...]]
+        # Build patterns for both title-based and slug-based links
+        patterns = [
+            re.compile(r"\[\[" + re.escape(title) + r"(\|[^\]]*)?\]\]", re.IGNORECASE),
+            re.compile(r"\[\[([^\]|]*/)?""" + re.escape(slug) + r"(\|[^\]]*)?\]\]", re.IGNORECASE),
+        ]
 
         for path in self._all_md_files():
             try:
                 content = path.read_text(encoding="utf-8")
             except Exception:
                 continue
-            if pattern.search(content):
+            if any(p.search(content) for p in patterns):
                 page = self._parse_page(path)
                 if page and page.title.lower() != title.lower():
                     backlinks.append(page.title)
@@ -421,6 +429,27 @@ class Vault:
 
     # ── Health ────────────────────────────────────────────────────────
 
+    def _resolve_link(self, link: str, slug_index: dict[str, str], title_index: dict[str, str], alias_index: dict[str, str]) -> str | None:
+        """Resolve a wikilink to a page title by checking slug, title, and alias indices.
+
+        Returns the page title if found, None otherwise.
+        """
+        link_lower = link.lower()
+        # Check by slug path (e.g. "some-project/_project" or "my-concept")
+        if link_lower in slug_index:
+            return slug_index[link_lower]
+        # Check the final path component as a slug (e.g. "my-project/_project" → "_project")
+        link_stem = Path(link).stem.lower()
+        if link_stem in slug_index:
+            return slug_index[link_stem]
+        # Check by title
+        if link_lower in title_index:
+            return title_index[link_lower]
+        # Check by alias
+        if link_lower in alias_index:
+            return alias_index[link_lower]
+        return None
+
     def health(self, checks: list[str] | None = None) -> dict:
         """Run vault health checks."""
         all_checks = {"orphans", "stubs", "broken_links", "validation", "duplicates"}
@@ -429,12 +458,18 @@ class Vault:
         pages = self._all_pages()
         report = HealthReport()
 
-        # Build title → page index and link graph
+        # Build indices: title, alias, and slug (relative path without .md)
         title_index = {p.title.lower(): p for p in pages}
         alias_index: dict[str, str] = {}
+        slug_index: dict[str, str] = {}
         for p in pages:
             for alias in p.aliases:
                 alias_index[alias.lower()] = p.title
+            # Index by relative path without extension (how outlinks() returns slugs)
+            rel_stem = str(p.path.with_suffix("")).lower()
+            slug_index[rel_stem] = p.title
+            # Also index by just the filename stem for simple [[slug]] links
+            slug_index[p.path.stem.lower()] = p.title
 
         all_outlinks: dict[str, list[str]] = {}
         all_inlinks: defaultdict[str, list[str]] = defaultdict(list)
@@ -443,7 +478,11 @@ class Vault:
             outlinks = p.outlinks()
             all_outlinks[p.title] = outlinks
             for link in outlinks:
-                all_inlinks[link.lower()].append(p.title)
+                resolved = self._resolve_link(link, slug_index, title_index, alias_index)
+                if resolved:
+                    all_inlinks[resolved.lower()].append(p.title)
+                else:
+                    all_inlinks[link.lower()].append(p.title)
 
         # Orphans: pages with no inbound links
         if "orphans" in run_checks:
@@ -463,8 +502,7 @@ class Vault:
         if "broken_links" in run_checks:
             for p in pages:
                 for link in p.outlinks():
-                    link_lower = link.lower()
-                    if link_lower not in title_index and link_lower not in alias_index:
+                    if not self._resolve_link(link, slug_index, title_index, alias_index):
                         report.broken_links.append({"from": p.title, "to": link})
 
         # Validation errors
@@ -679,13 +717,21 @@ class Vault:
         self, source: str, destination: str | None = None, bibtex_key: str | None = None
     ) -> dict:
         """Move/rename a file to the attachments folder, optionally with BibTeX-key naming."""
-        source_path = self.root / source
+        source_path = (self.root / source).resolve()
+        try:
+            source_path.relative_to(self.root.resolve())
+        except ValueError:
+            return {"error": "Source path is outside the vault"}
         if not source_path.exists():
             return {"error": f"Source file not found: {source}"}
 
         # Determine destination
         if destination:
-            dest_path = self.root / destination
+            dest_path = (self.root / destination).resolve()
+            try:
+                dest_path.relative_to(self.root.resolve())
+            except ValueError:
+                return {"error": "Destination path is outside the vault"}
         else:
             dest_path = self.root / "knowledge" / "resources" / "attachments"
 

@@ -34,6 +34,7 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
         "knowledge/tools",
         "knowledge/people",
         "knowledge/resources/attachments",
+        "to_ingest",
         "work/daily",
         "work/projects",
     ]
@@ -97,6 +98,7 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
     print("   │   ├── tools/")
     print("   │   ├── people/")
     print("   │   └── resources/attachments/")
+    print("   ├── to_ingest/                   ← Drop files here for ingestion")
     print("   └── work/projects/")
     print()
     print("   Next steps:")

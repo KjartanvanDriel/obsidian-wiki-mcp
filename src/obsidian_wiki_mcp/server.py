@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import sys
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from mcp.server.fastmcp import FastMCP
 
@@ -261,7 +264,7 @@ _SYNC_PATHS = [
     ".claude/commands/wiki.md",
     ".claude/commands/wiki-audit.md",
     ".claude/commands/wiki-ingest.md",
-    ".claude/commands/wiki-survey.md",
+    ".claude/commands/wiki-update-project.md",
     "CLAUDE.md",
 ]
 
@@ -340,13 +343,13 @@ def _sync_scaffold(vault_path: Path) -> None:
             updated.append(rel)
         else:
             # User has customized this file — skip
-            print(f"  ⊘ Skipping {rel} (locally modified)", file=sys.stderr)
+            logger.info("Skipping %s (locally modified)", rel)
 
     # Save current scaffold hashes for next sync
     hash_file.write_text(json.dumps(new_hashes, indent=2), encoding="utf-8")
 
     if updated:
-        print(f"  ✓ Synced {len(updated)} scaffold file(s): {', '.join(updated)}", file=sys.stderr)
+        logger.info("Synced %d scaffold file(s): %s", len(updated), ", ".join(updated))
 
 
 # ── Entry point ───────────────────────────────────────────────────────
@@ -380,17 +383,17 @@ def main():
     # Default: serve
     vault_path = getattr(args, "vault", None) or os.environ.get("VAULT_PATH", "")
     if not vault_path:
-        print("Error: VAULT_PATH environment variable or --vault flag is required.", file=sys.stderr)
-        print("  export VAULT_PATH=/path/to/your/obsidian/vault", file=sys.stderr)
-        print("  obsidian-wiki-mcp serve --vault /path/to/vault", file=sys.stderr)
-        print("\nTo create a new vault:", file=sys.stderr)
-        print("  obsidian-wiki-mcp init /path/to/vault", file=sys.stderr)
+        logger.error("VAULT_PATH environment variable or --vault flag is required.")
+        logger.error("  export VAULT_PATH=/path/to/your/obsidian/vault")
+        logger.error("  obsidian-wiki-mcp serve --vault /path/to/vault")
+        logger.error("To create a new vault:")
+        logger.error("  obsidian-wiki-mcp init /path/to/vault")
         sys.exit(1)
 
     if not Path(vault_path).exists():
-        print(f"Error: Vault path does not exist: {vault_path}", file=sys.stderr)
-        print(f"\nTo initialize a new vault:", file=sys.stderr)
-        print(f"  obsidian-wiki-mcp init {vault_path}", file=sys.stderr)
+        logger.error("Vault path does not exist: %s", vault_path)
+        logger.error("To initialize a new vault:")
+        logger.error("  obsidian-wiki-mcp init %s", vault_path)
         sys.exit(1)
 
     # Set env so _get_vault() picks it up
@@ -399,7 +402,8 @@ def main():
     # Sync scaffold files into the vault
     _sync_scaffold(Path(vault_path))
 
-    print(f"Starting obsidian-wiki MCP server (vault: {vault_path})", file=sys.stderr)
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(name)s: %(message)s")
+    logger.info("Starting obsidian-wiki MCP server (vault: %s)", vault_path)
     mcp.run()
 
 

@@ -8,6 +8,7 @@ You are a wiki agent operating on a structured Obsidian vault. A human curates y
 knowledge/            → concepts/, tools/, people/, resources/
 work/projects/{name}  → _project.md, experiments/, deliverables/, decisions/, tasks/, notes/, attachments/
 work/daily/           → YYYY-MM-DD.md daily logs (auto-appended on commit)
+to_ingest/            → Drop files here for ingestion via /wiki-ingest
 _schemas/             → YAML type definitions
 _wiki/style-guide.md  → writing conventions — read before writing content
 references.bib        → BibTeX citations
@@ -30,14 +31,14 @@ All operations go through the `wiki` MCP tool. Actions: create, read, update, se
 - **Use proper markdown and LaTeX.** All math must use LaTeX notation (`$inline$` and `$$display$$`). Use standard markdown for everything else — no HTML.
 - **IMPORTANT: Batch creation requires approval.** When creating multiple pages (decisions, concepts, stubs), ALWAYS present a checklist of proposed pages first and wait for the user to confirm before creating any. Only skip this if the user explicitly sets approval to autonomous. One page at a time is fine; two or more pages must be presented as a list first.
 
-## Survey
+## Project updates
 
-Projects can track external repos via `repos` metadata. Use `/wiki-survey` to:
-- Survey a new repo: `/wiki-survey /path/to/repo` — creates project + initial survey
-- Survey an existing project: `/wiki-survey [[Project Name]]` — diffs since last survey
-- Survey all active projects: `/wiki-survey`
+Projects can track external repos via `repos` metadata. Use `/wiki-update-project` to:
+- New project from repo: `/wiki-update-project /path/to/repo` — creates project + initial scan
+- Existing project: `/wiki-update-project [[Project Name]]` — diffs since last update, creates/updates wiki pages
+- All active projects: `/wiki-update-project`
 
-The survey always diffs the vault project folder AND any linked external repos. It identifies new concepts, tools, decisions, status changes, and stale pages.
+This diffs the vault project folder AND any linked external repos, then creates/updates concept, tool, decision, and status pages to reflect what's changed.
 
 ## File conventions
 

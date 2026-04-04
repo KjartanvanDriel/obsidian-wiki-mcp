@@ -1,10 +1,16 @@
-Survey a project and update the wiki to reflect what's changed.
+Diff a project's vault pages and linked repos since the last update, then create/update wiki pages to reflect what's changed.
+
+## Setup
+
+Before doing anything else, enter a worktree for this session:
+1. Use `EnterWorktree` to create an isolated working copy of the vault
+2. All changes will be made in the worktree — the main vault stays clean until you merge
 
 ## Modes
 
-- **New project from repo**: `/wiki-survey /path/to/repo` — creates a project page, does initial survey of the codebase
-- **Existing project**: `/wiki-survey [[Project Name]]` — diffs since last survey and updates the wiki
-- **All projects**: `/wiki-survey` (no args) — surveys all active projects
+- **New project from repo**: `/wiki-update-project /path/to/repo` — creates a project page, does initial survey of the codebase
+- **Existing project**: `/wiki-update-project [[Project Name]]` — diffs since last survey and updates the wiki
+- **All projects**: `/wiki-update-project` (no args) — surveys all active projects
 
 ## Options
 

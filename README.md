@@ -84,7 +84,7 @@ A single `wiki` tool with 12 actions:
 | `/wiki create a concept page about RLHF` | Any wiki work — loads full operational context |
 | `/wiki-audit` | Run health checks, fix issues |
 | `/wiki-ingest https://arxiv.org/...` | Add a paper or resource (supports `--approval` and `--scope` flags) |
-| `/wiki-survey /path/to/repo` | Survey a project — diff since last survey, update wiki |
+| `/wiki-update-project /path/to/repo` | Diff a project since last update, create/update wiki pages |
 
 ## Configuration
 
