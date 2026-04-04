@@ -375,3 +375,186 @@ def test_health_stubs(vault: Vault):
     vault.create_page(page_type="concept", title="Stubby", metadata={"status": "draft", "tags": ["a"]}, body="short")
     report = vault.health(checks=["stubs"])
     assert "Stubby" in report["stubs"]
+
+
+# ── links ────────────────────────────────────────────────────────────
+
+
+def test_get_links_outlinks(vault: Vault):
+    vault.create_page(
+        page_type="concept", title="Hub",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="See [[spoke-a|Spoke A]] and [[spoke-b|Spoke B]].",
+    )
+    result = vault.get_links("Hub", direction="out")
+    assert "outlinks" in result
+    assert "spoke-a" in result["outlinks"]
+    assert "spoke-b" in result["outlinks"]
+    assert "backlinks" not in result
+
+
+def test_get_links_backlinks(vault: Vault):
+    vault.create_page(
+        page_type="concept", title="Center",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="I am the center.",
+    )
+    vault.create_page(
+        page_type="concept", title="Satellite",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Orbiting [[center|Center]].",
+    )
+    result = vault.get_links("Center", direction="in")
+    assert "backlinks" in result
+    assert "Satellite" in result["backlinks"]
+    assert "outlinks" not in result
+
+
+def test_get_links_both(vault: Vault):
+    vault.create_page(
+        page_type="concept", title="Node A",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Link to [[node-b|Node B]].",
+    )
+    vault.create_page(
+        page_type="concept", title="Node B",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Link to [[node-a|Node A]].",
+    )
+    result = vault.get_links("Node A", direction="both")
+    assert "outlinks" in result
+    assert "backlinks" in result
+    assert "node-b" in result["outlinks"]
+    assert "Node B" in result["backlinks"]
+
+
+def test_get_links_not_found(vault: Vault):
+    result = vault.get_links("Ghost Page")
+    assert "error" in result
+
+
+# ── project ──────────────────────────────────────────────────────────
+
+
+def test_project_overview(vault: Vault):
+    vault.create_page(
+        page_type="project", title="My Project",
+        metadata={"status": "active", "goal": "Build something", "tags": ["test"]},
+    )
+    vault.create_page(
+        page_type="decision", title="Use Postgres",
+        metadata={
+            "status": "draft",
+            "project": "[[my-project/_project|My Project]]",
+            "date": "2026-01-01", "decision": "Use PG", "rationale": "Battle tested",
+            "tags": ["test"],
+        },
+    )
+    vault.create_page(
+        page_type="task", title="Setup CI",
+        metadata={
+            "status": "todo",
+            "project": "[[my-project/_project|My Project]]",
+            "due": "2026-02-01",
+            "tags": ["test"],
+        },
+    )
+    result = vault.project_overview("My Project")
+    assert result["title"] == "My Project"
+    assert result["goal"] == "Build something"
+    assert "decision" in result["children"]
+    assert "task" in result["children"]
+    assert any(c["title"] == "Use Postgres" for c in result["children"]["decision"])
+    assert any(c["title"] == "Setup CI" for c in result["children"]["task"])
+
+
+def test_project_overview_not_found(vault: Vault):
+    result = vault.project_overview("Nonexistent")
+    assert "error" in result
+
+
+def test_project_overview_not_a_project(vault: Vault):
+    vault.create_page(page_type="concept", title="Not A Project", metadata={"status": "draft", "tags": ["x"]})
+    result = vault.project_overview("Not A Project")
+    assert "error" in result
+    assert "not a project" in result["error"].lower()
+
+
+# ── provenance ───────────────────────────────────────────────────────
+
+
+def test_provenance_set_and_get(vault: Vault):
+    vault.create_page(page_type="concept", title="Sourced", metadata={"status": "draft", "tags": ["test"]})
+    sources = [
+        {"type": "paper", "ref": "arxiv:1234.5678"},
+        {"type": "context", "ref": "conversation with user"},
+    ]
+    set_result = vault.set_provenance("Sourced", sources)
+    assert set_result.get("updated") is True
+
+    get_result = vault.get_provenance("Sourced")
+    assert get_result["title"] == "Sourced"
+    assert len(get_result["sources_used"]) == 2
+    assert get_result["sources_used"][0]["ref"] == "arxiv:1234.5678"
+
+
+def test_provenance_not_found(vault: Vault):
+    result = vault.get_provenance("Ghost")
+    assert "error" in result
+
+
+# ── style guide ──────────────────────────────────────────────────────
+
+
+def test_style_init_and_read(vault: Vault):
+    content = "# Style Guide\n\n## Voice\n\nBe direct.\n\n## Formatting\n\nUse markdown.\n"
+    init_result = vault.init_style_guide(content)
+    assert init_result.get("created") is True
+
+    read_result = vault.get_style_guide()
+    assert "Be direct" in read_result["content"]
+
+
+def test_style_init_already_exists(vault: Vault):
+    vault.init_style_guide("# Guide\n")
+    result = vault.init_style_guide("# New Guide\n")
+    assert result.get("exists") is True
+
+
+def test_style_read_section(vault: Vault):
+    content = "# Style Guide\n\n## Voice\n\nBe concise.\n\n## Formatting\n\nUse tables.\n"
+    vault.init_style_guide(content)
+    result = vault.get_style_guide(section="Voice")
+    assert "Be concise" in result["content"]
+    assert "Use tables" not in result["content"]
+
+
+def test_style_read_section_not_found(vault: Vault):
+    vault.init_style_guide("# Guide\n\n## Voice\n\nStuff.\n")
+    result = vault.get_style_guide(section="Nonexistent")
+    assert "error" in result
+
+
+def test_style_update_full_replace(vault: Vault):
+    vault.init_style_guide("# Old\n")
+    result = vault.update_style_guide(content="# New\n\nFresh content.\n")
+    assert result.get("updated") is True
+    read = vault.get_style_guide()
+    assert "Fresh content" in read["content"]
+
+
+def test_style_update_section_patch(vault: Vault):
+    vault.init_style_guide("# Guide\n\n## Voice\n\nOld voice.\n\n## Formatting\n\nOld formatting.\n")
+    result = vault.update_style_guide(section="Voice", section_content="New voice rules.")
+    assert result.get("updated") is True
+    assert result["mode"] == "section_patch"
+
+    read = vault.get_style_guide()
+    assert "New voice rules" in read["content"]
+    assert "Old voice" not in read["content"]
+    assert "Old formatting" in read["content"]
+
+
+def test_style_read_no_guide(vault: Vault):
+    result = vault.get_style_guide()
+    assert "error" in result
