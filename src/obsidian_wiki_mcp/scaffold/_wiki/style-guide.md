@@ -246,11 +246,28 @@ Structure:
 
 ## Linking Conventions
 
+### Link format
+
+**IMPORTANT: Always use `[[slug|Display Name]]` format.** Obsidian resolves links by filename, not by frontmatter title. The slug is the kebab-case filename without `.md`.
+
+```
+[[vector-similarity-search|Vector Similarity Search]]
+[[faiss|FAISS]]
+[[rag-pipeline|RAG Pipeline]]
+```
+
+Never use `[[Display Name]]` alone — it won't resolve because files are named in kebab-case.
+
+For project pages (which use `_project.md`), link via the project folder name:
+```
+[[wiki-infrastructure/_project|Wiki Infrastructure]]
+```
+
 ### When to create a link
 
 - **Always link** the first mention of another wiki page in a body section.
 - **Don't over-link.** If "FAISS" appears 12 times on a page, link it once (first mention). The reader gets it.
-- **Link concepts, not common words.** Link `[[Vector Similarity Search]]` but don't link "Python" unless we have a meaningful Tool page for it.
+- **Link concepts, not common words.** Link `[[vector-similarity-search|Vector Similarity Search]]` but don't link "Python" unless we have a meaningful Tool page for it.
 
 ### When to create a new page
 
@@ -263,10 +280,10 @@ If it only needs a sentence, just explain it inline and move on.
 
 ### Link display names
 
-Use Obsidian's alias syntax when the page title is awkward in context:
+Use the alias syntax when the display text should differ from the title:
 
 ```
-We use [[Vector Similarity Search|vector search]] for retrieval.
+We use [[vector-similarity-search|vector search]] for retrieval.
 ```
 
 ---

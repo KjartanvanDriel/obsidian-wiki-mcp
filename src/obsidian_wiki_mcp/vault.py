@@ -25,6 +25,19 @@ def slugify(title: str) -> str:
     return slug.strip("-")
 
 
+def _extract_link_display(wikilink: str) -> str:
+    """Extract the display name from a wikilink.
+
+    [[slug|Display Name]] → Display Name
+    [[Display Name]] → Display Name
+    Display Name → Display Name
+    """
+    text = wikilink.strip("[]")
+    if "|" in text:
+        return text.split("|", 1)[1]
+    return text
+
+
 class Vault:
     """Stateless operations on an Obsidian vault."""
 
@@ -158,7 +171,8 @@ class Vault:
 
         # Add project reference for work-layer pages
         if project and "project" in schema.get("fields", {}):
-            full_metadata["project"] = f"[[{project}]]"
+            project_slug = slugify(project)
+            full_metadata["project"] = f"[[{project_slug}/_project|{project}]]"
 
         # Determine file path
         file_path = self._resolve_path(page_type, title, project)
@@ -313,9 +327,9 @@ class Vault:
                     return False
             elif key == "project":
                 page_project = page.metadata.get("project", "")
-                # Normalize wikilink comparison
-                clean_filter = value.strip("[]")
-                clean_page = page_project.strip("[]") if isinstance(page_project, str) else ""
+                # Normalize wikilink comparison — handle [[slug|Name]] and [[Name]] formats
+                clean_filter = _extract_link_display(value)
+                clean_page = _extract_link_display(page_project) if isinstance(page_project, str) else ""
                 if clean_filter.lower() != clean_page.lower():
                     return False
             else:
@@ -496,7 +510,7 @@ class Vault:
         for p in all_pages:
             project_ref = p.metadata.get("project", "")
             if isinstance(project_ref, str):
-                clean = project_ref.strip("[]")
+                clean = _extract_link_display(project_ref)
                 if clean.lower() == title.lower():
                     children[p.page_type].append({
                         "title": p.title,
@@ -508,7 +522,7 @@ class Vault:
         for p in all_pages:
             parent = p.metadata.get("parent_project", "")
             if isinstance(parent, str):
-                clean = parent.strip("[]")
+                clean = _extract_link_display(parent)
                 if clean.lower() == title.lower() and p.page_type == "project":
                     children["sub_project"].append({
                         "title": p.title,
