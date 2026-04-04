@@ -72,20 +72,20 @@ class Vault:
         """Get all markdown files in the vault, excluding _ prefixed dirs that aren't pages."""
         files = []
         # Non-wiki files/dirs to skip
-        skip_dirs = {".claude", ".obsidian", ".git", "node_modules", "daily", "to_ingest"}
-        skip_files = {"CLAUDE.md", "README.md", "TODO.md"}
+        skip_dirs = {".claude", ".obsidian", ".git", "node_modules", "daily", "to_ingest", "attachments"}
+        skip_files = {"CLAUDE.md", "README.md", "TODO.md", "todos.md"}
         for p in self.root.rglob("*.md"):
             rel = p.relative_to(self.root)
             parts = rel.parts
             # Skip dot-prefixed dirs, underscore-prefixed dirs, and known non-wiki dirs
             if any(part in skip_dirs or (part.startswith(".")) for part in parts[:-1]):
                 continue
-            if any(part.startswith("_") and part != "_project.md" for part in parts[:-1]):
+            if any(part.startswith("_") for part in parts[:-1]):
                 continue
             # Skip known non-wiki root files
             if len(parts) == 1 and p.name in skip_files:
                 continue
-            if p.name.startswith("_") and p.name != "_project.md":
+            if p.name.startswith("_"):
                 continue
             files.append(p)
         return sorted(files)
@@ -887,10 +887,6 @@ class Vault:
 
         folder_path = self.root / folder
         folder_path.mkdir(parents=True, exist_ok=True)
-
-        # Special case: project pages are named _project.md
-        if page_type == "project":
-            return folder_path / "_project.md"
 
         return folder_path / f"{slug}.md"
 

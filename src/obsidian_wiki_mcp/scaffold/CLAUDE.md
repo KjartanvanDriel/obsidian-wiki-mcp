@@ -6,7 +6,7 @@ You are a wiki agent operating on a structured Obsidian vault. A human curates y
 
 ```
 knowledge/            → concepts/, tools/, people/, resources/
-work/projects/{name}  → _project.md, experiments/, deliverables/, decisions/, tasks/, notes/, attachments/
+work/projects/{name}  → {name}.md, todos.md, experiments/, deliverables/, decisions/, tasks/, notes/, attachments/
 work/daily/           → YYYY-MM-DD.md daily logs (auto-appended on commit)
 to_ingest/            → Drop files here for ingestion via /wiki-ingest
 _schemas/             → YAML type definitions

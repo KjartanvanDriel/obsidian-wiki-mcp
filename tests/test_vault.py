@@ -445,7 +445,7 @@ def test_project_overview(vault: Vault):
         page_type="decision", title="Use Postgres",
         metadata={
             "status": "draft",
-            "project": "[[my-project/_project|My Project]]",
+            "project": "[[my-project|My Project]]",
             "date": "2026-01-01", "decision": "Use PG", "rationale": "Battle tested",
             "tags": ["test"],
         },
@@ -454,7 +454,7 @@ def test_project_overview(vault: Vault):
         page_type="task", title="Setup CI",
         metadata={
             "status": "todo",
-            "project": "[[my-project/_project|My Project]]",
+            "project": "[[my-project|My Project]]",
             "due": "2026-02-01",
             "tags": ["test"],
         },
