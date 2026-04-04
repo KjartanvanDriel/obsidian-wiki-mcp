@@ -73,7 +73,7 @@ class Vault:
         files = []
         # Non-wiki files/dirs to skip
         skip_dirs = {".claude", ".obsidian", ".git", "node_modules", "daily", "to_ingest", "attachments"}
-        skip_files = {"CLAUDE.md", "README.md", "TODO.md", "todos.md"}
+        skip_files = {"CLAUDE.md", "README.md", "TODO.md", "todos.md", "Landing.md"}
         for p in self.root.rglob("*.md"):
             rel = p.relative_to(self.root)
             parts = rel.parts
