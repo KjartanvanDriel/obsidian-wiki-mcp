@@ -12,7 +12,7 @@ from typing import Any
 
 import frontmatter
 
-from .models import HealthReport, ValidationError, WikiPage
+from .models import HealthReport, ValidationError, WikiPage, strip_code
 from .schemas import SchemaRegistry
 
 
@@ -375,7 +375,7 @@ class Vault:
 
         for path in self._all_md_files():
             try:
-                content = path.read_text(encoding="utf-8")
+                content = strip_code(path.read_text(encoding="utf-8"))
             except Exception:
                 continue
             if any(p.search(content) for p in patterns):

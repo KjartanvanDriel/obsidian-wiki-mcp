@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from obsidian_wiki_mcp.schemas import SchemaRegistry
+from obsidian_wiki_mcp.models import strip_code
 from obsidian_wiki_mcp.vault import Vault, slugify
 
 SCAFFOLD_SCHEMAS = Path(__file__).parent.parent / "src" / "obsidian_wiki_mcp" / "scaffold" / "_schemas"
@@ -128,6 +129,64 @@ def test_search_limit_capped(vault: Vault):
     result = vault.search(limit=999)
     # We can't easily test the cap directly, but the method shouldn't crash
     assert "count" in result
+
+
+# ── code stripping ───────────────────────────────────────────────────
+
+
+def test_strip_code_removes_inline():
+    assert "[[link]]" not in strip_code("see `[[link]]` here")
+    assert "outside" in strip_code("outside `[[link]]` text")
+
+
+def test_strip_code_removes_fenced_block():
+    text = "before\n```\n[[inside-block]]\n```\nafter"
+    result = strip_code(text)
+    assert "inside-block" not in result
+    assert "before" in result
+    assert "after" in result
+
+
+def test_outlinks_ignores_code(vault: Vault):
+    vault.create_page(
+        page_type="concept", title="Code Example",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Real link: [[real-target|Real]]. Code: `[[fake-target|Fake]]`.\n\n```\n[[block-target|Block]]\n```",
+    )
+    page = vault._parse_page(vault._title_to_path("Code Example"))
+    links = page.outlinks()
+    assert "real-target" in links
+    assert "fake-target" not in links
+    assert "block-target" not in links
+
+
+def test_health_ignores_links_in_code(vault: Vault):
+    """Wikilinks inside code blocks should not generate broken link reports."""
+    vault.create_page(
+        page_type="concept", title="Docs Page",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Example: `[[example-link|Example]]`.\n\n```\n[[code-link|Code]]\n```",
+    )
+    report = vault.health(checks=["broken_links"])
+    broken_targets = [b["to"] for b in report["broken_links"]]
+    assert "example-link" not in broken_targets
+    assert "code-link" not in broken_targets
+
+
+def test_backlinks_ignores_code(vault: Vault):
+    """Backlinks should not be found from wikilinks inside code blocks."""
+    vault.create_page(
+        page_type="concept", title="Real Page",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Content.",
+    )
+    vault.create_page(
+        page_type="concept", title="Code Ref",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Example: `[[real-page|Real Page]]`.",
+    )
+    backlinks = vault._find_backlinks("Real Page")
+    assert "Code Ref" not in backlinks
 
 
 # ── links and health (slug resolution) ───────────────────────────────

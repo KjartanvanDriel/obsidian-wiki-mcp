@@ -9,6 +9,17 @@ from pathlib import Path
 from typing import Any
 
 
+_RE_CODE_BLOCK = re.compile(r"```[\s\S]*?```", re.MULTILINE)
+_RE_INLINE_CODE = re.compile(r"`[^`]+`")
+
+
+def strip_code(text: str) -> str:
+    """Remove fenced code blocks and inline code from text."""
+    text = _RE_CODE_BLOCK.sub("", text)
+    text = _RE_INLINE_CODE.sub("", text)
+    return text
+
+
 @dataclass
 class WikiPage:
     """A parsed wiki page."""
@@ -44,8 +55,9 @@ class WikiPage:
     def outlinks(self) -> list[str]:
         """Extract all [[wikilinks]] from body and metadata."""
         links = set()
-        # Links in body
-        links.update(re.findall(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", self.body))
+        # Links in body (excluding code blocks and inline code)
+        body_text = strip_code(self.body)
+        links.update(re.findall(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", body_text))
         # Links in metadata values
         _extract_links_from_value(self.metadata, links)
         return sorted(links)
