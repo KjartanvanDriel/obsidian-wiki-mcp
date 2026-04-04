@@ -279,6 +279,18 @@ We use [[Vector Similarity Search|vector search]] for retrieval.
 - One blank line between sections. No extra blank lines.
 - No trailing whitespace.
 
+### Math
+
+- Use LaTeX notation for all math: `$inline$` for inline and `$$display$$` for display equations.
+- Example inline: `The loss is $L = -\sum_i y_i \log \hat{y}_i$`
+- Example display:
+  ```
+  $$
+  \text{softmax}(x_i) = \frac{e^{x_i}}{\sum_j e^{x_j}}
+  $$
+  ```
+- Obsidian renders LaTeX via MathJax. Use standard LaTeX commands.
+
 ### Lists
 
 - Use `-` for unordered lists, `1.` for ordered lists.

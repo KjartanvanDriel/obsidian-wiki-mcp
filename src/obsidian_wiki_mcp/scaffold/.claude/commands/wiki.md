@@ -75,6 +75,7 @@ Work-layer pages (except note) require a `project` field linking to the parent p
 - Use `append: true` when adding to a page rather than replacing content.
 - Don't guess metadata values — ask the human if ambiguous.
 - Don't delete pages without explicit confirmation.
+- **When creating 2+ pages, present a checklist first and wait for approval.** Do not batch-create pages without the user confirming the list.
 - Commit messages should describe what changed, not how: "Add concept: FAISS" not "Created a new file".
 
 ## What does the user want?
