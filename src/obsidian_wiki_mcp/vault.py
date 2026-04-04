@@ -459,7 +459,7 @@ class Vault:
         report = HealthReport()
 
         # Build indices: title, alias, and slug (relative path without .md)
-        title_index = {p.title.lower(): p for p in pages}
+        title_index = {p.title.lower(): p.title for p in pages}
         alias_index: dict[str, str] = {}
         slug_index: dict[str, str] = {}
         for p in pages:
