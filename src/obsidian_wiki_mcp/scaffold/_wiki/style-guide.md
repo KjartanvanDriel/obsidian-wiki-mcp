@@ -298,15 +298,41 @@ We use [[vector-similarity-search|vector search]] for retrieval.
 
 ### Math
 
-- Use LaTeX notation for all math: `$inline$` for inline and `$$display$$` for display equations.
-- Example inline: `The loss is $L = -\sum_i y_i \log \hat{y}_i$`
-- Example display:
-  ```
-  $$
-  \text{softmax}(x_i) = \frac{e^{x_i}}{\sum_j e^{x_j}}
-  $$
-  ```
-- Obsidian renders LaTeX via MathJax. Use standard LaTeX commands.
+Use LaTeX notation for all math: `$inline$` for inline and `$$display$$` for display equations. Obsidian renders via MathJax.
+
+#### Notation conventions
+
+**Linear algebra:**
+- Vectors: bold lowercase — $\mathbf{x}, \mathbf{u}, \mathbf{s}$. Components with superscript index: $x^i$.
+- Matrices: bold capitals — $\mathbf{D}, \mathbf{W}$. Components: $D^{ij}$.
+- Basis vectors: $\mathbf{e}^i$. Projection: $\mathbf{D}^i = \mathbf{D}\mathbf{e}^i$.
+
+**Time:**
+- Discrete time indexed by $t$ (integers). Time-dependent vectors: $\mathbf{x}_t$.
+- Time-dependent functions: $\kappa(t)$. Timestep: $\delta t$. Timescale: $\tau$.
+- Decay kernel example: $\kappa(t) = \exp\left(-t\frac{\delta t}{\tau}\right)$.
+
+**Probability:**
+- Distributions: lowercase $p$. Write $p(\mathbf{x})$ for the distribution over $\mathbf{x}$.
+- Sampling: $\mathbf{x} \sim p(\mathbf{x})$.
+- Conditioning: $p(\mathbf{x} \mid \mathbf{c})$.
+- Parameterized distributions: subscript with parameters — $p_\theta(\mathbf{x})$.
+- Expectations: bracket notation — $\langle f(\mathbf{x}) \rangle_{p(\mathbf{x})}$.
+- Proportionality: use $\propto$ to drop normalization constants.
+
+**Bayesian inference:**
+- Prior: $p(\mathbf{c})$. Likelihood: $p(\mathbf{x} \mid \mathbf{c})$. Posterior: $p(\mathbf{c} \mid \mathbf{x})$.
+- Bayes' rule: $p(\mathbf{c} \mid \mathbf{x}) \propto p(\mathbf{x} \mid \mathbf{c})\, p(\mathbf{c})$.
+
+**Functionals:**
+- Square brackets for functional arguments: $F[f(\mathbf{x})]$ or $F[f]$.
+
+**Derivatives:**
+- Leibniz notation: $\frac{d}{dx}$ for full, $\frac{\partial}{\partial x}$ for partial.
+
+**General:**
+- Greek letters for parameters ($\theta, \Theta, \Psi$), Latin for variables ($x, z, s$).
+- Energy functions: $E(\mathbf{x})$. Inverse temperature: $\beta$.
 
 ### Lists
 
