@@ -184,6 +184,108 @@ def test_health_slug_links_not_orphan(vault: Vault):
     assert "Linked Page" not in report["orphans"], "Slug-linked page incorrectly reported as orphan"
 
 
+def test_health_title_link_not_broken(vault: Vault):
+    """Links using [[Title]] format (matching by title index) should not be broken."""
+    vault.create_page(
+        page_type="concept",
+        title="Exact Title Match",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Content.",
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Title Linker",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="See [[Exact Title Match]].",
+    )
+    report = vault.health(checks=["broken_links"])
+    broken_targets = [b["to"] for b in report["broken_links"]]
+    assert "Exact Title Match" not in broken_targets
+
+
+def test_health_title_link_not_orphan(vault: Vault):
+    """Pages linked by title should not be orphans."""
+    vault.create_page(
+        page_type="concept",
+        title="Title Target",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Content.",
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Title Source",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="See [[Title Target]].",
+    )
+    report = vault.health(checks=["orphans"])
+    assert "Title Target" not in report["orphans"]
+
+
+def test_health_alias_link_not_broken(vault: Vault):
+    """Links matching an alias should not be reported as broken."""
+    vault.create_page(
+        page_type="concept",
+        title="Full Name Page",
+        metadata={"status": "draft", "tags": ["test"], "aliases": ["FNP"]},
+        body="Content.",
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Alias Linker",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="See [[FNP]].",
+    )
+    report = vault.health(checks=["broken_links"])
+    broken_targets = [b["to"] for b in report["broken_links"]]
+    assert "FNP" not in broken_targets
+
+
+def test_health_alias_link_not_orphan(vault: Vault):
+    """Pages linked via alias should not be orphans."""
+    vault.create_page(
+        page_type="concept",
+        title="Alias Target",
+        metadata={"status": "draft", "tags": ["test"], "aliases": ["AT"]},
+        body="Content.",
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Alias Source",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="See [[AT]].",
+    )
+    report = vault.health(checks=["orphans"])
+    assert "Alias Target" not in report["orphans"]
+
+
+def test_health_all_checks_no_crash(vault: Vault):
+    """Running all health checks together should not crash."""
+    vault.create_page(
+        page_type="concept",
+        title="Page A",
+        metadata={"status": "draft", "tags": ["test"]},
+        body="Link to [[page-b|Page B]] and [[Page A]] and [[NonExistent]].",
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Page B",
+        metadata={"status": "draft", "tags": ["test"], "aliases": ["PB"]},
+        body="Link to [[PB]] self-ref and [[page-a|Page A]].",
+    )
+    report = vault.health()  # all checks
+    assert "orphans" in report
+    assert "broken_links" in report
+    assert "stubs" in report
+    assert "validation_errors" in report
+    assert "duplicate_suspects" in report
+    # Only NonExistent should be broken
+    broken_targets = [b["to"] for b in report["broken_links"]]
+    assert "NonExistent" in broken_targets
+    assert "page-b" not in broken_targets
+    assert "page-a" not in broken_targets
+    assert "PB" not in broken_targets
+
+
 def test_health_real_broken_link(vault: Vault):
     """A link to a genuinely nonexistent page should still be broken."""
     vault.create_page(
