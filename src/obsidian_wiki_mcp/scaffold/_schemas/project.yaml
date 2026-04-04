@@ -20,6 +20,13 @@ fields:
     type: list
     item_type: string
     default: []
+  repos:
+    type: list
+    item_type: repo
+    default: []
+  last_vault_survey:
+    type: string
+    default: ""
   artifacts:
     type: list
     item_type: artifact

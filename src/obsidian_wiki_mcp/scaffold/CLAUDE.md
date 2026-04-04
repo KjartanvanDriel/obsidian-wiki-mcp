@@ -27,6 +27,15 @@ All operations go through the `wiki` MCP tool. Actions: create, read, update, se
 - **Never delete pages without confirmation.**
 - **Never commit without approval.** Always ask the user before committing. Commits auto-append to the daily log.
 
+## Survey
+
+Projects can track external repos via `repos` metadata. Use `/wiki-survey` to:
+- Survey a new repo: `/wiki-survey /path/to/repo` — creates project + initial survey
+- Survey an existing project: `/wiki-survey [[Project Name]]` — diffs since last survey
+- Survey all active projects: `/wiki-survey`
+
+The survey always diffs the vault project folder AND any linked external repos. It identifies new concepts, tools, decisions, status changes, and stale pages.
+
 ## File conventions
 
 - Raw files (PDFs, datasets): `knowledge/resources/attachments/` or `work/projects/{name}/attachments/`
