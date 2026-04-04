@@ -1,0 +1,47 @@
+type: resource
+layer: knowledge
+folder: knowledge/resources
+
+required_fields:
+  - resource_type
+  - status
+
+fields:
+  resource_type:
+    type: enum
+    values: [paper, dataset, book, article, docs, other]
+  status:
+    type: enum
+    values: [unread, reading, read, archived]
+    default: unread
+  url:
+    type: string
+    default: ""
+  file:
+    type: string
+    default: ""
+  bibtex_key:
+    type: string
+    default: ""
+  authors:
+    type: list
+    item_type: string
+    default: []
+  year:
+    type: integer
+  tags:
+    type: list
+    item_type: string
+    default: []
+  aliases:
+    type: list
+    item_type: string
+    default: []
+  related_concepts:
+    type: list
+    item_type: wikilink
+    default: []
+  sources_used:
+    type: list
+    item_type: source
+    default: []

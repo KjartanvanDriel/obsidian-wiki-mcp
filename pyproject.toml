@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "obsidian-wiki-mcp"
+version = "0.1.0"
+description = "MCP server for structured wiki operations on an Obsidian vault"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "python-frontmatter>=1.1.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+obsidian-wiki-mcp = "obsidian_wiki_mcp.server:main"
+obsidian-wiki-init = "obsidian_wiki_mcp.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/obsidian_wiki_mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/obsidian_wiki_mcp/scaffold" = "obsidian_wiki_mcp/scaffold"

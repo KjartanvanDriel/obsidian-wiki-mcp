@@ -1,0 +1,37 @@
+type: tool
+layer: knowledge
+folder: knowledge/tools
+
+required_fields:
+  - status
+  - tags
+
+fields:
+  status:
+    type: enum
+    values: [stub, draft, published]
+    default: stub
+  tags:
+    type: list
+    item_type: string
+  aliases:
+    type: list
+    item_type: string
+    default: []
+  url:
+    type: string
+    default: ""
+  category:
+    type: enum
+    values: [library, service, framework, platform, cli]
+  language:
+    type: string
+    default: ""
+  related_tools:
+    type: list
+    item_type: wikilink
+    default: []
+  sources_used:
+    type: list
+    item_type: source
+    default: []

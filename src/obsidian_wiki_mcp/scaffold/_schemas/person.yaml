@@ -1,0 +1,28 @@
+type: person
+layer: knowledge
+folder: knowledge/people
+
+required_fields:
+  - role
+
+fields:
+  role:
+    type: enum
+    values: [collaborator, author, contact]
+  affiliation:
+    type: string
+    default: ""
+  email:
+    type: string
+    default: ""
+  url:
+    type: string
+    default: ""
+  tags:
+    type: list
+    item_type: string
+    default: []
+  related_projects:
+    type: list
+    item_type: wikilink
+    default: []

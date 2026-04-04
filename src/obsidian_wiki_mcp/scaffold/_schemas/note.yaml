@@ -1,0 +1,25 @@
+type: note
+layer: work
+folder: work/projects/{project_slug}/notes
+
+required_fields:
+  - date
+  - note_type
+
+fields:
+  project:
+    type: wikilink
+    default: ""
+  date:
+    type: date
+  note_type:
+    type: enum
+    values: [meeting, daily, freeform]
+  tags:
+    type: list
+    item_type: string
+    default: []
+  sources_used:
+    type: list
+    item_type: source
+    default: []

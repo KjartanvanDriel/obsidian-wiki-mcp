@@ -1,0 +1,32 @@
+type: experiment
+layer: work
+folder: work/projects/{project_slug}/experiments
+
+required_fields:
+  - status
+  - project
+  - hypothesis
+
+fields:
+  status:
+    type: enum
+    values: [planned, running, completed, failed]
+    default: planned
+  project:
+    type: wikilink
+  hypothesis:
+    type: string
+  method:
+    type: string
+    default: ""
+  result:
+    type: string
+    default: ""
+  tags:
+    type: list
+    item_type: string
+    default: []
+  sources_used:
+    type: list
+    item_type: source
+    default: []

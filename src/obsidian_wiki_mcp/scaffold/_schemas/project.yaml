@@ -1,0 +1,30 @@
+type: project
+layer: work
+folder: work/projects/{slug}
+
+required_fields:
+  - status
+  - goal
+
+fields:
+  status:
+    type: enum
+    values: [active, paused, completed, archived]
+    default: active
+  goal:
+    type: string
+  parent_project:
+    type: wikilink
+    default: ""
+  tags:
+    type: list
+    item_type: string
+    default: []
+  artifacts:
+    type: list
+    item_type: artifact
+    default: []
+  sources_used:
+    type: list
+    item_type: source
+    default: []

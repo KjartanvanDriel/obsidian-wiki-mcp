@@ -1,0 +1,28 @@
+type: concept
+layer: knowledge
+folder: knowledge/concepts
+
+required_fields:
+  - status
+  - tags
+
+fields:
+  status:
+    type: enum
+    values: [stub, draft, published]
+    default: stub
+  tags:
+    type: list
+    item_type: string
+  aliases:
+    type: list
+    item_type: string
+    default: []
+  related_concepts:
+    type: list
+    item_type: wikilink
+    default: []
+  sources_used:
+    type: list
+    item_type: source
+    default: []

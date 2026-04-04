@@ -1,0 +1,26 @@
+type: deliverable
+layer: work
+folder: work/projects/{project_slug}/deliverables
+
+required_fields:
+  - status
+  - project
+
+fields:
+  status:
+    type: enum
+    values: [planned, in-progress, done, abandoned]
+    default: planned
+  project:
+    type: wikilink
+  description:
+    type: string
+    default: ""
+  tags:
+    type: list
+    item_type: string
+    default: []
+  sources_used:
+    type: list
+    item_type: source
+    default: []

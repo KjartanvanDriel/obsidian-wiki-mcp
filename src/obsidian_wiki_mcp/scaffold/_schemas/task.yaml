@@ -1,0 +1,28 @@
+type: task
+layer: work
+folder: work/projects/{project_slug}/tasks
+
+required_fields:
+  - status
+  - project
+
+fields:
+  status:
+    type: enum
+    values: [todo, in-progress, done, blocked]
+    default: todo
+  project:
+    type: wikilink
+  priority:
+    type: enum
+    values: [low, medium, high]
+    default: medium
+  due:
+    type: date
+  assigned:
+    type: wikilink
+    default: ""
+  tags:
+    type: list
+    item_type: string
+    default: []
