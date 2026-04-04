@@ -106,6 +106,19 @@ def test_update_body_append(vault: Vault):
     assert "Second." in read["body"]
 
 
+def test_update_body_replace(vault: Vault):
+    vault.create_page(page_type="concept", title="Replaceable", metadata={"status": "draft", "tags": ["a"]}, body="Old body.")
+    vault.update_page("Replaceable", body="New body.")
+    read = vault.read_page("Replaceable")
+    assert "New body." in read["body"]
+    assert "Old body." not in read["body"]
+
+
+def test_update_not_found(vault: Vault):
+    result = vault.update_page("Ghost", metadata={"status": "draft"})
+    assert "error" in result
+
+
 # ── search ───────────────────────────────────────────────────────────
 
 
@@ -129,6 +142,47 @@ def test_search_limit_capped(vault: Vault):
     result = vault.search(limit=999)
     # We can't easily test the cap directly, but the method shouldn't crash
     assert "count" in result
+
+
+def test_search_sort(vault: Vault):
+    vault.create_page(page_type="concept", title="Zebra", metadata={"status": "draft", "tags": ["sort"]})
+    vault.create_page(page_type="concept", title="Apple", metadata={"status": "draft", "tags": ["sort"]})
+    result = vault.search(filters={"tags": "sort"}, sort="title")
+    titles = [r["title"] for r in result["results"]]
+    assert titles == ["Apple", "Zebra"]
+
+    result_desc = vault.search(filters={"tags": "sort"}, sort="-title")
+    titles_desc = [r["title"] for r in result_desc["results"]]
+    assert titles_desc == ["Zebra", "Apple"]
+
+
+def test_search_by_tag_prefix(vault: Vault):
+    vault.create_page(page_type="concept", title="Deep Tag", metadata={"status": "draft", "tags": ["infra/ci"]})
+    vault.create_page(page_type="concept", title="Other Tag", metadata={"status": "draft", "tags": ["research"]})
+    result = vault.search(filters={"tags": "infra"})
+    assert result["count"] == 1
+    assert result["results"][0]["title"] == "Deep Tag"
+
+
+def test_search_by_project_filter(vault: Vault):
+    vault.create_page(page_type="project", title="FilterProj", metadata={"status": "active", "goal": "test", "tags": ["t"]})
+    vault.create_page(
+        page_type="decision", title="ProjDec",
+        metadata={"status": "draft", "project": "[[filter-proj|FilterProj]]", "date": "2026-01-01", "decision": "x", "rationale": "y", "tags": ["t"]},
+    )
+    vault.create_page(
+        page_type="decision", title="OtherDec",
+        metadata={"status": "draft", "project": "[[other|Other]]", "date": "2026-01-01", "decision": "x", "rationale": "y", "tags": ["t"]},
+    )
+    result = vault.search(filters={"project": "FilterProj"})
+    assert result["count"] == 1
+    assert result["results"][0]["title"] == "ProjDec"
+
+
+def test_search_no_results(vault: Vault):
+    result = vault.search(text="absolutely-nothing-matches-this")
+    assert result["count"] == 0
+    assert result["results"] == []
 
 
 # ── code stripping ───────────────────────────────────────────────────
@@ -390,6 +444,23 @@ def test_validate_vault(vault: Vault):
     assert "pages_checked" in result
 
 
+def test_validate_with_errors(vault: Vault):
+    """A page with an invalid enum value should fail validation."""
+    import frontmatter as fm
+    bad_path = vault.root / "knowledge" / "concepts" / "bad.md"
+    bad_path.parent.mkdir(parents=True, exist_ok=True)
+    post = fm.Post("", type="concept", title="Bad", status="invalid-status", tags=["x"])
+    bad_path.write_text(fm.dumps(post))
+    result = vault.validate("Bad")
+    assert result["valid"] is False
+    assert any("invalid-status" in e["message"] for e in result["errors"])
+
+
+def test_validate_not_found(vault: Vault):
+    result = vault.validate("Ghost")
+    assert "error" in result
+
+
 # ── move_file path traversal ─────────────────────────────────────────
 
 
@@ -413,6 +484,55 @@ def test_move_file_normal(vault: Vault):
     result = vault.move_file("moveme.pdf")
     assert result.get("moved") is True
     assert "attachments" in result["to"]
+
+
+def test_move_file_bibtex_key(vault: Vault):
+    (vault.root / "paper.pdf").write_text("pdf content")
+    result = vault.move_file("paper.pdf", bibtex_key="smithML2025")
+    assert result.get("moved") is True
+    assert "smithML2025.pdf" in result["to"]
+
+
+def test_move_file_dest_exists(vault: Vault):
+    attachments = vault.root / "knowledge" / "resources" / "attachments"
+    attachments.mkdir(parents=True, exist_ok=True)
+    (attachments / "conflict.pdf").write_text("existing")
+    (vault.root / "conflict.pdf").write_text("new")
+    result = vault.move_file("conflict.pdf")
+    assert "error" in result
+    assert "exists" in result["error"].lower()
+
+
+def test_move_file_not_found(vault: Vault):
+    result = vault.move_file("nonexistent.pdf")
+    assert "error" in result
+
+
+# ── commit (with git) ────────────────────────────────────────────────
+
+
+@pytest.fixture
+def git_vault(vault: Vault) -> Vault:
+    """A vault with git initialized."""
+    import subprocess
+    subprocess.run(["git", "init"], cwd=vault.root, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=vault.root, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=vault.root, capture_output=True, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=vault.root, capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=vault.root, capture_output=True, check=True)
+    return vault
+
+
+def test_commit(git_vault: Vault):
+    git_vault.create_page(page_type="concept", title="Committed", metadata={"status": "draft", "tags": ["t"]})
+    result = git_vault.commit("Add committed page")
+    assert result.get("committed") is True
+    assert "Add committed page" in result["message"]
+
+
+def test_commit_nothing(git_vault: Vault):
+    result = git_vault.commit("Empty commit")
+    assert result.get("committed") is False
 
 
 # ── duplicates and stubs ─────────────────────────────────────────────

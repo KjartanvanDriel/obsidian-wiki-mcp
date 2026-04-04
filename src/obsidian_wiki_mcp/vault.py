@@ -641,7 +641,10 @@ class Vault:
                 self._append_to_daily(commit_hash, message, changed_files)
 
                 return {"committed": True, "message": message, "output": result.stdout.strip()}
-            elif "nothing to commit" in result.stdout:
+            elif result.returncode == 1 and not result.stderr.strip():
+                # Nothing to commit — git returns 1 with no stderr
+                return {"committed": False, "message": "Nothing to commit"}
+            elif "nothing to commit" in result.stdout or "nichts zu committen" in result.stdout:
                 return {"committed": False, "message": "Nothing to commit"}
             else:
                 return {"error": result.stderr.strip()}
