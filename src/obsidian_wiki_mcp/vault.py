@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 from collections import defaultdict
 from datetime import date
@@ -58,7 +59,7 @@ class Vault:
         """Get all markdown files in the vault, excluding _ prefixed dirs that aren't pages."""
         files = []
         # Non-wiki files/dirs to skip
-        skip_dirs = {".claude", ".obsidian", ".git", "node_modules"}
+        skip_dirs = {".claude", ".obsidian", ".git", "node_modules", "daily"}
         skip_files = {"CLAUDE.md", "README.md"}
         for p in self.root.rglob("*.md"):
             rel = p.relative_to(self.root)
@@ -562,7 +563,7 @@ class Vault:
     # ── Git ───────────────────────────────────────────────────────────
 
     def commit(self, message: str) -> dict:
-        """Stage all changes and commit."""
+        """Stage all changes and commit, then append to the daily file."""
         try:
             subprocess.run(["git", "add", "-A"], cwd=self.root, check=True, capture_output=True)
             result = subprocess.run(
@@ -572,6 +573,21 @@ class Vault:
                 text=True,
             )
             if result.returncode == 0:
+                # Get commit hash and changed files
+                hash_result = subprocess.run(
+                    ["git", "rev-parse", "--short", "HEAD"],
+                    cwd=self.root, capture_output=True, text=True,
+                )
+                commit_hash = hash_result.stdout.strip()
+
+                diff_result = subprocess.run(
+                    ["git", "diff", "--name-only", "HEAD~1", "HEAD"],
+                    cwd=self.root, capture_output=True, text=True,
+                )
+                changed_files = [f for f in diff_result.stdout.strip().split("\n") if f]
+
+                self._append_to_daily(commit_hash, message, changed_files)
+
                 return {"committed": True, "message": message, "output": result.stdout.strip()}
             elif "nothing to commit" in result.stdout:
                 return {"committed": False, "message": "Nothing to commit"}
@@ -581,6 +597,103 @@ class Vault:
             return {"error": "Git not found. Is git installed?"}
         except subprocess.CalledProcessError as e:
             return {"error": str(e)}
+
+    def _append_to_daily(self, commit_hash: str, message: str, changed_files: list[str]) -> None:
+        """Append a commit entry to today's daily file, grouped by project."""
+        today = date.today().isoformat()
+        daily_dir = self.root / "work" / "daily"
+        daily_dir.mkdir(parents=True, exist_ok=True)
+        daily_path = daily_dir / f"{today}.md"
+
+        # Group changed files by project
+        projects: dict[str, list[str]] = defaultdict(list)
+        for f in changed_files:
+            parts = Path(f).parts
+            if len(parts) >= 3 and parts[0] == "work" and parts[1] == "projects":
+                project_name = parts[2].replace("-", " ").title()
+                projects[project_name].append(f)
+            else:
+                projects["General"].append(f)
+
+        # Read or create daily file
+        if daily_path.exists():
+            content = daily_path.read_text(encoding="utf-8")
+        else:
+            content = f"# {today}\n"
+
+        # Ensure ## Commits section exists
+        if "## Commits" not in content:
+            content = content.rstrip() + "\n\n## Commits\n"
+
+        # Append entry under each project heading
+        lines = content.split("\n")
+        for project_name in sorted(projects.keys()):
+            heading = f"### {project_name}"
+            entry = f"- {commit_hash}: {message}"
+
+            # Find existing project heading under ## Commits
+            commits_idx = None
+            heading_idx = None
+            for i, line in enumerate(lines):
+                if line.strip() == "## Commits":
+                    commits_idx = i
+                if commits_idx is not None and line.strip() == heading:
+                    heading_idx = i
+                    break
+
+            if heading_idx is not None:
+                # Find insertion point (after last list item under this heading)
+                insert_at = heading_idx + 1
+                while insert_at < len(lines) and (
+                    lines[insert_at].startswith("- ") or lines[insert_at].strip() == ""
+                ):
+                    insert_at += 1
+                # Insert before the next heading or end
+                if insert_at > heading_idx + 1 and lines[insert_at - 1].strip() == "":
+                    insert_at -= 1
+                lines.insert(insert_at, entry)
+            else:
+                # Add new project heading at end
+                lines.append(f"\n{heading}\n")
+                lines.append(entry)
+
+        daily_path.write_text("\n".join(lines), encoding="utf-8")
+
+    # ── File management ────────────────────────────────────────────────
+
+    def move_file(
+        self, source: str, destination: str | None = None, bibtex_key: str | None = None
+    ) -> dict:
+        """Move/rename a file to the attachments folder, optionally with BibTeX-key naming."""
+        source_path = self.root / source
+        if not source_path.exists():
+            return {"error": f"Source file not found: {source}"}
+
+        # Determine destination
+        if destination:
+            dest_path = self.root / destination
+        else:
+            dest_path = self.root / "knowledge" / "resources" / "attachments"
+
+        dest_path.mkdir(parents=True, exist_ok=True)
+
+        # Determine filename
+        if bibtex_key:
+            filename = bibtex_key + source_path.suffix
+        else:
+            filename = source_path.name
+
+        final_path = dest_path / filename
+        if final_path.exists():
+            return {"error": f"Destination already exists: {final_path.relative_to(self.root)}"}
+
+        shutil.move(str(source_path), str(final_path))
+
+        return {
+            "moved": True,
+            "from": source,
+            "to": str(final_path.relative_to(self.root)),
+        }
 
     # ── Helpers ───────────────────────────────────────────────────────
 

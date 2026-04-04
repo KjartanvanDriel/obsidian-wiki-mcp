@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -12,6 +13,8 @@ from mcp.server.fastmcp import FastMCP
 
 from .schemas import SchemaRegistry
 from .vault import Vault
+
+SCAFFOLD_DIR = Path(__file__).parent / "scaffold"
 
 # ── Configuration ─────────────────────────────────────────────────────
 
@@ -30,6 +33,7 @@ Use the `wiki` tool with an `action` parameter. Available actions:
   provenance — Get or set generation sources for a page
   commit  — Git commit all current changes
   style   — Read or update the wiki style guide. Read this before writing content.
+  move_file — Move/rename a file to attachments with optional BibTeX-key naming
 """,
 )
 
@@ -76,6 +80,9 @@ def wiki(
     content: str | None = None,
     section: str | None = None,
     section_content: str | None = None,
+    source: str | None = None,
+    destination: str | None = None,
+    bibtex_key: str | None = None,
 ) -> str:
     """
     Structured wiki operations on an Obsidian vault.
@@ -92,6 +99,7 @@ def wiki(
       provenance — Get/set sources. Requires: title. Optional: mode (get/set), sources.
       commit     — Git commit. Requires: message.
       style      — Read or update the wiki style guide.
+      move_file  — Move/rename a file. Requires: source. Optional: destination, bibtex_key.
                    mode='read': Read full guide or a section. Optional: section.
                    mode='update': Update full guide or a section. Provide content (full) or section + section_content (patch).
                    mode='init': Create the default style guide if none exists.
@@ -218,12 +226,22 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
         else:
             return {"error": f"Unknown style mode: {m}. Use 'read', 'update', or 'init'."}
 
+    elif action == "move_file":
+        if not kwargs.get("source"):
+            return {"error": "move_file requires 'source'"}
+        return vault.move_file(
+            source=kwargs["source"],
+            destination=kwargs.get("destination"),
+            bibtex_key=kwargs.get("bibtex_key"),
+        )
+
     else:
         return {
             "error": f"Unknown action: {action}",
             "available_actions": [
                 "create", "read", "update", "search", "validate",
-                "health", "project", "links", "provenance", "commit", "style",
+                "health", "project", "links", "provenance", "commit",
+                "style", "move_file",
             ],
         }
 
@@ -234,6 +252,100 @@ def _load_default_style_guide() -> str:
     if style_path.exists():
         return style_path.read_text(encoding="utf-8")
     return "# Wiki Style Guide\n\n> This is a living document. Update it as conventions evolve.\n\n## Voice & Tone\n\nWrite like a knowledgeable colleague. Be direct, precise, and concise.\n"
+
+
+# ── Scaffold sync ────────────────────────────────────────────────────
+
+# Files that are safe to auto-update (not user-customizable)
+_SYNC_PATHS = [
+    ".claude/commands/wiki.md",
+    ".claude/commands/wiki-audit.md",
+    ".claude/commands/wiki-ingest.md",
+    "CLAUDE.md",
+]
+
+# Files synced only if unchanged from a previous scaffold version
+_SYNC_IF_UNCHANGED_PATHS = [
+    "_schemas/concept.yaml",
+    "_schemas/decision.yaml",
+    "_schemas/deliverable.yaml",
+    "_schemas/experiment.yaml",
+    "_schemas/note.yaml",
+    "_schemas/person.yaml",
+    "_schemas/project.yaml",
+    "_schemas/resource.yaml",
+    "_schemas/task.yaml",
+    "_schemas/tool.yaml",
+]
+
+
+def _file_hash(path: Path) -> str:
+    """SHA256 hash of a file's contents."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _sync_scaffold(vault_path: Path) -> None:
+    """Sync scaffold files from the installed package into the vault.
+
+    - Command files and CLAUDE.md are always updated.
+    - Schema files are only updated if the vault copy matches the previous
+      scaffold version (i.e., the user hasn't customized them).
+    """
+    if not SCAFFOLD_DIR.exists():
+        return
+
+    updated = []
+
+    # Always-sync files
+    for rel in _SYNC_PATHS:
+        src = SCAFFOLD_DIR / rel
+        dest = vault_path / rel
+        if not src.exists():
+            continue
+        if dest.exists() and _file_hash(src) == _file_hash(dest):
+            continue  # Already up to date
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(src.read_bytes())
+        updated.append(rel)
+
+    # Sync-if-unchanged files (schemas)
+    hash_file = vault_path / ".scaffold-hashes.json"
+    prev_hashes: dict[str, str] = {}
+    if hash_file.exists():
+        try:
+            prev_hashes = json.loads(hash_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    new_hashes: dict[str, str] = {}
+    for rel in _SYNC_IF_UNCHANGED_PATHS:
+        src = SCAFFOLD_DIR / rel
+        dest = vault_path / rel
+        if not src.exists():
+            continue
+
+        src_hash = _file_hash(src)
+        new_hashes[rel] = src_hash
+
+        if not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(src.read_bytes())
+            updated.append(rel)
+        elif _file_hash(dest) == src_hash:
+            continue  # Already up to date
+        elif rel in prev_hashes and _file_hash(dest) == prev_hashes[rel]:
+            # Vault copy matches previous scaffold version — safe to update
+            dest.write_bytes(src.read_bytes())
+            updated.append(rel)
+        else:
+            # User has customized this file — skip
+            print(f"  ⊘ Skipping {rel} (locally modified)", file=sys.stderr)
+
+    # Save current scaffold hashes for next sync
+    hash_file.write_text(json.dumps(new_hashes, indent=2), encoding="utf-8")
+
+    if updated:
+        print(f"  ✓ Synced {len(updated)} scaffold file(s): {', '.join(updated)}", file=sys.stderr)
 
 
 # ── Entry point ───────────────────────────────────────────────────────
@@ -282,6 +394,9 @@ def main():
 
     # Set env so _get_vault() picks it up
     os.environ["VAULT_PATH"] = str(vault_path)
+
+    # Sync scaffold files into the vault
+    _sync_scaffold(Path(vault_path))
 
     print(f"Starting obsidian-wiki MCP server (vault: {vault_path})", file=sys.stderr)
     mcp.run()

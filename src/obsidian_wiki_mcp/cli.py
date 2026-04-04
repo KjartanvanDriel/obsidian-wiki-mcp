@@ -34,6 +34,7 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
         "knowledge/tools",
         "knowledge/people",
         "knowledge/resources/attachments",
+        "work/daily",
         "work/projects",
     ]
     for d in dirs:
@@ -52,6 +53,11 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
             ".obsidian/workspace.json\n"
             ".obsidian/workspace-mobile.json\n"
             ".trash/\n"
+            "\n"
+            "# Raw files\n"
+            "*.pdf\n"
+            "knowledge/resources/attachments/\n"
+            "work/projects/*/attachments/\n"
             "\n"
             "# OS\n"
             ".DS_Store\n"

@@ -38,6 +38,7 @@ my-wiki/
 │   ├── people/
 │   └── resources/attachments/
 └── work/
+    ├── daily/                       # Auto-generated daily logs
     └── projects/
         └── {project-name}/
             ├── _project.md
@@ -45,7 +46,8 @@ my-wiki/
             ├── deliverables/
             ├── decisions/
             ├── tasks/
-            └── notes/
+            ├── notes/
+            └── attachments/         # Raw files (gitignored)
 ```
 
 ### Page types
@@ -58,7 +60,7 @@ Each type has a YAML schema defining required fields, enums, and defaults.
 
 ### MCP tool
 
-A single `wiki` tool with 11 actions:
+A single `wiki` tool with 12 actions:
 
 | Action | Purpose |
 |--------|---------|
@@ -71,8 +73,9 @@ A single `wiki` tool with 11 actions:
 | `project` | Project overview with children and artifacts |
 | `links` | Backlinks and outlinks |
 | `provenance` | Get/set generation sources |
-| `commit` | Git commit changes |
+| `commit` | Git commit changes + auto-append to daily log |
 | `style` | Read/update the style guide |
+| `move_file` | Move/rename files to attachments with BibTeX-key naming |
 
 ### Slash commands
 
@@ -80,7 +83,7 @@ A single `wiki` tool with 11 actions:
 |---------|----------|
 | `/wiki create a concept page about RLHF` | Any wiki work — loads full operational context |
 | `/wiki-audit` | Run health checks, fix issues |
-| `/wiki-ingest https://arxiv.org/...` | Add a paper or resource |
+| `/wiki-ingest https://arxiv.org/...` | Add a paper or resource (supports `--approval` and `--scope` flags) |
 
 ## Configuration
 

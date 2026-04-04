@@ -79,7 +79,8 @@ Structure:
 
 ## Our usage
 
-{How this concept shows up in our projects. Link to relevant experiments, decisions.}
+{How this concept shows up in our projects. Link to relevant experiments, decisions.
+If no projects exist yet, use: TODO — link to relevant projects when created.}
 
 ## See Also
 ```
@@ -129,7 +130,8 @@ Structure:
 
 ## Relevance to our work
 
-{How this connects to our projects and concepts. Link liberally.}
+{How this connects to our projects and concepts. Link liberally.
+If no projects exist yet, use: TODO — link to relevant projects when created.}
 
 ## Notes
 
