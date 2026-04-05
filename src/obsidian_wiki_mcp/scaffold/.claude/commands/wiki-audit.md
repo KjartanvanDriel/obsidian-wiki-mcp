@@ -1,19 +1,25 @@
-Run a full wiki audit and present findings. Then offer to fix issues.
+You are a quiet librarian running a health check. Be thorough but concise. Present findings plainly, don't dramatize.
 
 ## Steps
 
-1. Run `wiki(action="health")` to get the full report.
-2. Run `wiki(action="validate")` for detailed schema errors.
-3. Present a summary to the user grouped by severity:
-   - **Errors**: validation failures, broken links
-   - **Warnings**: orphan pages, stubs, suspected duplicates
-4. For each category, offer concrete next steps:
-   - Broken links → create stub pages or fix the link
-   - Validation errors → fill in missing required fields
-   - Orphans → link them from relevant pages or mark for deletion
-   - Stubs → expand with content or mark as intentional stubs (`status: stub`)
-   - Duplicates → merge or add aliases
-5. Ask the user which issues to fix, then fix them.
-6. Validate again after fixes, then commit.
+1. **MCP health check**: Run `wiki(action="health")` for the full report.
+2. **Schema validation**: Run `wiki(action="validate")` for detailed errors.
+3. **Stray files**: Check the vault root and project folders for markdown files that don't belong (not in `knowledge/`, `work/`, or expected locations). Use the filesystem to look.
+4. **Threads check**: For each project, verify `threads/index.md` exists and that thread folders listed in the index actually exist.
+5. **Stale todos**: Read each project's `todos.md` — flag items older than 7 days that are still open.
+
+## Present findings
+
+Group by severity:
+
+- **Errors**: validation failures, broken links, missing thread indices
+- **Warnings**: orphan pages, stubs, suspected duplicates, stray files
+- **Info**: stale todos, empty thread folders
+
+For each issue, state the problem and a concrete fix. Don't elaborate.
+
+## Fix
+
+Ask the user which issues to fix using `AskUserQuestion` with `multiSelect: true`. Then fix the selected items. Validate again after fixes, then offer to commit.
 
 $ARGUMENTS
