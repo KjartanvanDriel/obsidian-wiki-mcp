@@ -265,6 +265,7 @@ _SYNC_PATHS = [
     ".claude/commands/wiki-audit.md",
     ".claude/commands/wiki-ingest.md",
     ".claude/commands/wiki-update-project.md",
+    ".claude/commands/research.md",
     "CLAUDE.md",
 ]
 
