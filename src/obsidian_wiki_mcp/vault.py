@@ -82,8 +82,8 @@ class Vault:
                 continue
             if any(part.startswith("_") for part in parts[:-1]):
                 continue
-            # Skip known non-wiki root files
-            if len(parts) == 1 and p.name in skip_files:
+            # Skip known non-wiki files (anywhere in vault)
+            if p.name in skip_files:
                 continue
             if p.name.startswith("_"):
                 continue

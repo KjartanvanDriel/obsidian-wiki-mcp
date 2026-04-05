@@ -86,6 +86,29 @@ def test_read_not_found(vault: Vault):
     assert "not found" in result["error"].lower()
 
 
+# ── file exclusion ───────────────────────────────────────────────────
+
+
+def test_skip_files_excluded(vault: Vault):
+    """threads.md, todos.md, Landing.md, and attachments/ should not be indexed."""
+    # Create files that should be skipped
+    (vault.root / "Landing.md").write_text("# Landing\n")
+    project_dir = vault.root / "work" / "projects" / "test-proj"
+    project_dir.mkdir(parents=True, exist_ok=True)
+    (project_dir / "threads.md").write_text("# Threads\n")
+    (project_dir / "todos.md").write_text("# TODOs\n")
+    attachments = project_dir / "attachments"
+    attachments.mkdir(parents=True, exist_ok=True)
+    (attachments / "report.md").write_text("# Raw report\n")
+
+    md_files = vault._all_md_files()
+    names = [p.name for p in md_files]
+    assert "threads.md" not in names
+    assert "todos.md" not in names
+    assert "Landing.md" not in names
+    assert "report.md" not in names
+
+
 # ── update ───────────────────────────────────────────────────────────
 
 
