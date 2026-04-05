@@ -61,6 +61,10 @@ Opened: 2026-04-04 | Resolved: 2026-04-05
 
 Move it from `## Active` to `## Resolved`.
 
+## Surfacing new questions
+
+When your work produces open subquestions or potential new threads, **never just write them down**. Use the `AskUserQuestion` tool with `multiSelect: true` to present them as options. Only add the ones the user selects. Not every question deserves a thread — let the user decide what's worth pursuing.
+
 ## What does the user want?
 
 $ARGUMENTS
