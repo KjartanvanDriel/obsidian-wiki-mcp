@@ -6,7 +6,7 @@ You are a wiki agent operating on a structured Obsidian vault. A human curates y
 
 ```
 knowledge/            → concepts/, tools/, people/, resources/
-work/projects/{name}  → {name}.md, todos.md, experiments/, deliverables/, decisions/, tasks/, notes/, attachments/
+work/projects/{name}  → {name}.md, threads.md, todos.md, experiments/, deliverables/, decisions/, tasks/, notes/, attachments/
 work/daily/           → YYYY-MM-DD.md daily logs (auto-appended on commit)
 to_ingest/            → Drop files here for ingestion via /wiki-ingest
 _schemas/             → YAML type definitions
@@ -30,6 +30,16 @@ All operations go through the `wiki` MCP tool. Actions: create, read, update, se
 - **IMPORTANT: Use `[[slug|Display Name]]` for all wikilinks.** Obsidian resolves by filename, not title. `[[vector-similarity-search|Vector Similarity Search]]` not `[[Vector Similarity Search]]`.
 - **Use proper markdown and LaTeX.** All math must use LaTeX notation (`$inline$` and `$$display$$`). Use standard markdown for everything else — no HTML.
 - **IMPORTANT: Batch creation requires approval.** When creating multiple pages (decisions, concepts, stubs), ALWAYS present a checklist of proposed pages first and wait for the user to confirm before creating any. Only skip this if the user explicitly sets approval to autonomous. One page at a time is fine; two or more pages must be presented as a list first.
+
+## Project structure
+
+Each project has three living documents:
+
+- **`{name}.md`** — the narrative: what we're investigating, current understanding, and pointers to active threads. This is the entry point.
+- **`threads.md`** — active research threads: questions being explored, with accumulated notes. Resolved threads point to the decisions/concepts they produced.
+- **`todos.md`** — concrete action items, grouped by date.
+
+The project page drives the work. Threads are the intellectual frontier — pick one up, work it, and the outputs (decisions, concepts, experiments) feed back into the project narrative. When a thread is resolved, move it under `## Resolved` with a link to what it produced.
 
 ## Project updates
 
