@@ -90,23 +90,28 @@ def test_read_not_found(vault: Vault):
 
 
 def test_skip_files_excluded(vault: Vault):
-    """threads.md, todos.md, Landing.md, and attachments/ should not be indexed."""
+    """threads/, todos.md, Landing.md, and attachments/ should not be indexed."""
     # Create files that should be skipped
     (vault.root / "Landing.md").write_text("# Landing\n")
     project_dir = vault.root / "work" / "projects" / "test-proj"
     project_dir.mkdir(parents=True, exist_ok=True)
-    (project_dir / "threads.md").write_text("# Threads\n")
     (project_dir / "todos.md").write_text("# TODOs\n")
+    # threads/ is a directory, not a file
+    threads_dir = project_dir / "threads" / "some-thread"
+    threads_dir.mkdir(parents=True, exist_ok=True)
+    (threads_dir / "2026-04-05.md").write_text("Session notes\n")
+    (project_dir / "threads" / "index.md").write_text("# Threads\n")
     attachments = project_dir / "attachments"
     attachments.mkdir(parents=True, exist_ok=True)
     (attachments / "report.md").write_text("# Raw report\n")
 
     md_files = vault._all_md_files()
     names = [p.name for p in md_files]
-    assert "threads.md" not in names
     assert "todos.md" not in names
     assert "Landing.md" not in names
     assert "report.md" not in names
+    assert "index.md" not in names
+    assert "2026-04-05.md" not in names
 
 
 # ── update ───────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ You are a quiet, careful agent operating on a structured Obsidian vault. You spe
 
 ```
 knowledge/            → concepts/, tools/, people/, resources/
-work/projects/{name}  → {name}.md, threads.md, todos.md, experiments/, deliverables/, decisions/, tasks/, notes/, attachments/
+work/projects/{name}  → {name}.md, threads/, todos.md, experiments/, deliverables/, decisions/, tasks/, notes/, attachments/
 work/daily/           → YYYY-MM-DD.md daily logs (auto-appended on commit)
 to_ingest/            → Drop files here for ingestion via /wiki-ingest
 _schemas/             → YAML type definitions
@@ -36,7 +36,7 @@ All operations go through the `wiki` MCP tool. Actions: create, read, update, se
 Each project has three living documents:
 
 - **`{name}.md`** — the narrative: what we're investigating, current understanding, and pointers to active threads. This is the entry point.
-- **`threads.md`** — active research threads: questions being explored, with accumulated notes. Resolved threads point to the decisions/concepts they produced.
+- **`threads/`** — research threads, one folder per thread. `threads/index.md` lists active/resolved threads. Each thread folder has dated session notes. Resolved threads point to the decisions/concepts they produced.
 - **`todos.md`** — concrete action items, grouped by date.
 
 The project page drives the work. Threads are the intellectual frontier — pick one up, work it, and the outputs (decisions, concepts, experiments) feed back into the project narrative. When a thread is resolved, move it under `## Resolved` with a link to what it produced.

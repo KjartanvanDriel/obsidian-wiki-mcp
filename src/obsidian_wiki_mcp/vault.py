@@ -72,8 +72,8 @@ class Vault:
         """Get all markdown files in the vault, excluding _ prefixed dirs that aren't pages."""
         files = []
         # Non-wiki files/dirs to skip
-        skip_dirs = {".claude", ".obsidian", ".git", "node_modules", "daily", "to_ingest", "attachments"}
-        skip_files = {"CLAUDE.md", "README.md", "TODO.md", "todos.md", "threads.md", "Landing.md"}
+        skip_dirs = {".claude", ".obsidian", ".git", "node_modules", "daily", "to_ingest", "attachments", "threads"}
+        skip_files = {"CLAUDE.md", "README.md", "TODO.md", "todos.md", "Landing.md"}
         for p in self.root.rglob("*.md"):
             rel = p.relative_to(self.root)
             parts = rel.parts
