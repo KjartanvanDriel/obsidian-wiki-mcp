@@ -39,11 +39,13 @@ Do NOT read anything else until you know what you're working on.
 
 ```
 work/projects/{slug}/threads/
-├── index.md                        # lists all active and resolved threads
+├── index.md                              # lists all active and resolved threads
 ├── kl-rate-at-resolution/
-│   ├── 2026-04-05.md               # session notes
-│   └── 2026-04-05-discrete-time.md # another session same day
+│   ├── kl-rate-at-resolution.md          # landing page (description, status, links to notes)
+│   ├── 2026-04-05.md                     # session notes
+│   └── 2026-04-05-discrete-time.md       # another session same day
 ├── factor-of-2-fdt/
+│   ├── factor-of-2-fdt.md                # landing page
 │   └── 2026-04-05.md
 ```
 
@@ -62,12 +64,23 @@ work/projects/{slug}/threads/
 - [[alif-from-metabolic-cost]] — Resolved → [[alif-from-metabolic-cost|decision]]
 ```
 
-Each entry is a one-line summary with a wikilink to the thread folder. The index is what you read on startup to see the frontier.
+Each entry is a one-line summary with a wikilink to the thread's landing page.
 
 ### Opening a new thread
 
 1. Create the folder: `threads/{thread-slug}/`
-2. Add an entry to `## Active` in `index.md`
+2. Create the landing page: `threads/{thread-slug}/{thread-slug}.md` with the thread description, status, and open questions
+3. Add an entry to `## Active` in `index.md`
+
+### Thread landing page
+
+The file with the same name as the folder. This is what the wikilink in `index.md` resolves to. It contains:
+- Status (exploring / blocked / resolved)
+- The core question or problem statement
+- Links to session notes: `[[YYYY-MM-DD-topic|summary]]`
+- Current state / next steps
+
+Keep it concise — it's an overview, not the working-out.
 
 ### Writing session notes
 
@@ -83,19 +96,14 @@ If multiple sessions happen on the same day, add a suffix:
 threads/{thread-slug}/YYYY-MM-DD-topic.md
 ```
 
-Session notes have no frontmatter — just the working-out. Start with a brief context line, then the substance:
-
-```markdown
-Picking up from yesterday's finding that the low-rate KL diverges.
-
-The divergence comes from...
-```
+Session notes have no frontmatter — just the working-out. Start with a brief context line, then the substance. Link each new session note from the landing page.
 
 ### Resolving a thread
 
-1. Move its entry from `## Active` to `## Resolved` in `index.md`
-2. Add a pointer to what it produced: `→ [[slug|decision/concept page]]`
-3. The thread folder and its notes stay as-is (they're the record)
+1. Update the landing page status to `resolved`
+2. Move its entry from `## Active` to `## Resolved` in `index.md`
+3. Add a pointer to what it produced: `→ [[slug|decision/concept page]]`
+4. The thread folder and its notes stay as-is (they're the record)
 
 ## Surfacing new questions
 
