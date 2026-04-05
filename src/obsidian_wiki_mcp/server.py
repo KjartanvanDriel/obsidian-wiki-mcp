@@ -270,6 +270,7 @@ _SYNC_PATHS = [
 
 # Files synced only if unchanged from a previous scaffold version
 _SYNC_IF_UNCHANGED_PATHS = [
+    "Landing.md",
     "_schemas/concept.yaml",
     "_schemas/decision.yaml",
     "_schemas/deliverable.yaml",
