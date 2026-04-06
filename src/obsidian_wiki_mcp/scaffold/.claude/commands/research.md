@@ -33,7 +33,7 @@ Do NOT read anything else until you know what you're working on.
 - **Propose, don't decide.** When a thread resolves, propose the output (decision, concept page, etc.) to the user. Don't create wiki pages without approval.
 - **Stay in scope.** You're working on one project. If you discover something relevant to another project, note it in todos, don't chase it.
 - **Use LaTeX for math.** `$inline$` and `$$display$$`.
-- **Use `[[slug|Display Name]]` for wikilinks.
+- **Use `[[slug|Display Name]]` for wikilinks.** For threads, use the full path `[[thread-slug/thread-slug|Thread Name]]` to avoid folder/file ambiguity.
 
 ## Thread structure
 
@@ -56,12 +56,12 @@ work/projects/{slug}/threads/
 
 ## Active
 
-- [[kl-rate-at-resolution]] — Can we compare spike vs OU via transition kernel KL at resolution Δt?
-- [[factor-of-2-fdt]] — Resolving the asymmetry in fluctuation-dissipation
+- [[kl-rate-at-resolution/kl-rate-at-resolution|kl-rate-at-resolution]] — Can we compare spike vs OU via transition kernel KL at resolution Δt?
+- [[factor-of-2-fdt/factor-of-2-fdt|factor-of-2-fdt]] — Resolving the asymmetry in fluctuation-dissipation
 
 ## Resolved
 
-- [[alif-from-metabolic-cost]] — Resolved → [[alif-from-metabolic-cost|decision]]
+- [[alif-from-metabolic-cost/alif-from-metabolic-cost|alif-from-metabolic-cost]] — Resolved → [[alif-from-metabolic-cost|decision]]
 ```
 
 Each entry is a one-line summary with a wikilink to the thread's landing page.
@@ -70,7 +70,7 @@ Each entry is a one-line summary with a wikilink to the thread's landing page.
 
 1. Create the folder: `threads/{thread-slug}/`
 2. Create the landing page: `threads/{thread-slug}/{thread-slug}.md` with the thread description, status, and open questions
-3. Add an entry to `## Active` in `index.md`
+3. Add an entry to `## Active` in `index.md` using `[[{thread-slug}/{thread-slug}|{thread-slug}]]` — the full path is required to avoid resolving to the folder
 
 ### Thread landing page
 
