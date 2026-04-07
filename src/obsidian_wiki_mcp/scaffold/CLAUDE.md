@@ -50,6 +50,15 @@ Projects can track external repos via `repos` metadata. Use `/wiki-update-projec
 
 This diffs the vault project folder AND any linked external repos, then creates/updates concept, tool, decision, and status pages to reflect what's changed.
 
+## External repo access
+
+Projects may link to repos outside the vault via `repos` metadata. Before reading an external repo:
+1. Check `.claude/settings.local.json` → `permissions.additionalDirectories` for the path
+2. If the path is listed, use `AskUserQuestion` to confirm before reading: "Project X links to /path/to/repo. Read it?"
+3. If the path is **not** listed, ask the user: "This repo isn't in the allowed directories. Add /path/to/repo to `.claude/settings.local.json`?" If approved, add it to the `additionalDirectories` array.
+
+Never read external directories without asking first.
+
 ## File conventions
 
 - Raw files (PDFs, datasets): `knowledge/resources/attachments/` or `work/projects/{name}/attachments/`
