@@ -558,6 +558,18 @@ def test_commit(git_vault: Vault):
     assert "Add committed page" in result["message"]
 
 
+def test_commit_specific_files(git_vault: Vault):
+    """Only specified files should be committed."""
+    git_vault.create_page(page_type="concept", title="Included", metadata={"status": "draft", "tags": ["t"]})
+    git_vault.create_page(page_type="concept", title="Excluded", metadata={"status": "draft", "tags": ["t"]})
+    result = git_vault.commit("Selective commit", files=["knowledge/concepts/included.md"])
+    assert result.get("committed") is True
+    # Excluded should still be untracked
+    import subprocess
+    status = subprocess.run(["git", "status", "--porcelain"], cwd=git_vault.root, capture_output=True, text=True)
+    assert "excluded.md" in status.stdout
+
+
 def test_commit_nothing(git_vault: Vault):
     result = git_vault.commit("Empty commit")
     assert result.get("committed") is False

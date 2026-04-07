@@ -614,10 +614,13 @@ class Vault:
 
     # ── Git ───────────────────────────────────────────────────────────
 
-    def commit(self, message: str) -> dict:
-        """Stage all changes and commit, then append to the daily file."""
+    def commit(self, message: str, files: list[str] | None = None) -> dict:
+        """Stage specified files (or all) and commit, then append to the daily file."""
         try:
-            subprocess.run(["git", "add", "-A"], cwd=self.root, check=True, capture_output=True)
+            if files:
+                subprocess.run(["git", "add", "--"] + files, cwd=self.root, check=True, capture_output=True)
+            else:
+                subprocess.run(["git", "add", "-A"], cwd=self.root, check=True, capture_output=True)
             result = subprocess.run(
                 ["git", "commit", "-m", message],
                 cwd=self.root,

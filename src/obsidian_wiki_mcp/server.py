@@ -83,6 +83,7 @@ def wiki(
     content: str | None = None,
     section: str | None = None,
     section_content: str | None = None,
+    files: list[str] | None = None,
     source: str | None = None,
     destination: str | None = None,
     bibtex_key: str | None = None,
@@ -100,7 +101,7 @@ def wiki(
       project    — Project overview. Requires: title.
       links      — Get links. Requires: title. Optional: direction (in/out/both).
       provenance — Get/set sources. Requires: title. Optional: mode (get/set), sources.
-      commit     — Git commit. Requires: message.
+      commit     — Git commit. Requires: message. Optional: files (list of paths to stage; omit for all).
       style      — Read or update the wiki style guide.
       move_file  — Move/rename a file. Requires: source. Optional: destination, bibtex_key.
                    mode='read': Read full guide or a section. Optional: section.
@@ -211,7 +212,7 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
     elif action == "commit":
         if not kwargs.get("message"):
             return {"error": "commit requires 'message'"}
-        return vault.commit(kwargs["message"])
+        return vault.commit(kwargs["message"], files=kwargs.get("files"))
 
     elif action == "style":
         m = kwargs.get("mode", "read")
