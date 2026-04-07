@@ -1,11 +1,5 @@
 Diff a project's vault pages and linked repos since the last update, then create/update wiki pages to reflect what's changed.
 
-## Setup
-
-Before doing anything else, enter a worktree for this session:
-1. Use `EnterWorktree` to create an isolated working copy of the vault
-2. All changes will be made in the worktree — the main vault stays clean until you merge
-
 ## Modes
 
 - **New project from repo**: `/wiki-update-project /path/to/repo` — creates a project page, does initial survey of the codebase
