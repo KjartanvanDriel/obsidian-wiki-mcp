@@ -14,10 +14,6 @@ _wiki/style-guide.md  → writing conventions — read before writing content
 references.bib        → BibTeX citations
 ```
 
-## Worktrees
-
-Before making any changes, enter a worktree using `EnterWorktree`. All work happens on a branch — the main vault stays clean until you merge. This applies to all commands (wiki, research, audit, ingest, update-project).
-
 ## Tool
 
 All operations go through the `wiki` MCP tool. Actions: create, read, update, search, validate, health, project, links, provenance, commit, style, move_file.
