@@ -102,11 +102,8 @@ def wiki(
       links      — Get links. Requires: title. Optional: direction (in/out/both).
       provenance — Get/set sources. Requires: title. Optional: mode (get/set), sources.
       commit     — Git commit. Requires: message. Optional: files (list of paths to stage; omit for all).
-      style      — Read or update the wiki style guide.
-      move_file  — Move/rename a file. Requires: source. Optional: destination, bibtex_key.
-                   mode='read': Read full guide or a section. Optional: section.
-                   mode='update': Update full guide or a section. Provide content (full) or section + section_content (patch).
-                   mode='init': Create the default style guide if none exists.
+      style      — Read or update the wiki style guide. mode='read' (default): read full or section. mode='update': replace full (content) or patch (section + section_content). mode='init': create default.
+      move_file  — Move/rename a file into attachments. Requires: source (path relative to vault root). Optional: destination, bibtex_key.
     """
     try:
         vault = _get_vault()
