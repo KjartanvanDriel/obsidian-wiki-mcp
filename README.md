@@ -191,6 +191,10 @@ Tell Claude: "update the style guide to prefer tables over bullet lists in conce
 
 Drop a `.md` file in `.claude/commands/`. Use `$ARGUMENTS` to pass through user input.
 
+## Inspiration
+
+Inspired by [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — the idea that an LLM should incrementally build and maintain a persistent wiki rather than re-derive knowledge from raw sources on every query.
+
 ## License
 
 MIT
