@@ -210,8 +210,10 @@ class Vault:
         metadata: dict[str, Any] | None = None,
         body: str | None = None,
         append: bool = False,
+        section: str | None = None,
+        section_content: str | None = None,
     ) -> dict:
-        """Update a page's metadata, body, or both."""
+        """Update a page's metadata, body, or both. Supports section-level updates."""
         path = self._title_to_path(title)
         if not path:
             return {"error": f"Page not found: {title}"}
@@ -227,7 +229,17 @@ class Vault:
 
         # Update body
         new_body = page.body
-        if body is not None:
+        if section is not None and (section_content is not None or (body is not None and append)):
+            # Section-level update
+            new_body = self._patch_section(
+                page.body,
+                section,
+                section_content=section_content,
+                append_text=body if append else None,
+            )
+            if new_body is None:
+                return {"error": f"Section '{section}' not found in '{title}'"}
+        elif body is not None:
             if append:
                 new_body = page.body + "\n\n" + body
             else:
@@ -863,6 +875,67 @@ class Vault:
         return {"created": True, "path": str(path.relative_to(self.root))}
 
     # ── Helpers (continued) ───────────────────────────────────────────
+
+    def _patch_section(
+        self,
+        body: str,
+        section: str,
+        section_content: str | None = None,
+        append_text: str | None = None,
+    ) -> str | None:
+        """Replace or append to a section in a markdown body. Returns None if section not found."""
+        lines = body.split("\n")
+        new_lines = []
+        in_section = False
+        section_level = 0
+        found = False
+
+        for line in lines:
+            if not in_section and line.startswith("#") and section.lower() in line.lower():
+                in_section = True
+                section_level = len(line) - len(line.lstrip("#"))
+                found = True
+                new_lines.append(line)
+
+                if section_content is not None:
+                    # Replace section content
+                    new_lines.append("")
+                    new_lines.append(section_content.strip())
+                    new_lines.append("")
+                elif append_text is not None:
+                    # Keep existing content, we'll append after it
+                    pass
+                continue
+
+            if in_section:
+                if line.startswith("#"):
+                    current_level = len(line) - len(line.lstrip("#"))
+                    if current_level <= section_level:
+                        in_section = False
+                        if append_text is not None:
+                            # Append before the next heading
+                            new_lines.append(append_text.strip())
+                            new_lines.append("")
+                        new_lines.append(line)
+                        continue
+
+                if section_content is not None:
+                    # Skip old section content (already replaced)
+                    continue
+                else:
+                    # Keep existing content (for append mode)
+                    new_lines.append(line)
+            else:
+                new_lines.append(line)
+
+        # If section was the last one, append at end
+        if in_section and append_text is not None:
+            new_lines.append(append_text.strip())
+            new_lines.append("")
+
+        if not found:
+            return None
+        return "\n".join(new_lines)
 
     def _check_duplicate(self, title: str, aliases: list[str]) -> str | None:
         """Check if a page with this title or any alias already exists."""

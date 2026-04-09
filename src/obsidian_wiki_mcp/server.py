@@ -94,7 +94,7 @@ def wiki(
     Actions:
       create     — Create a page. Requires: page_type, title. Optional: metadata, body, project.
       read       — Read a page. Requires: title.
-      update     — Update a page. Requires: title. Optional: metadata, body, append.
+      update     — Update a page. Requires: title. Optional: metadata, body, append, section, section_content. Use section + section_content to replace a section. Use section + body + append=true to append to a section.
       search     — Search pages. Optional: text (full-text), filters (metadata), sort, limit.
       validate   — Validate pages. Optional: title (omit for whole vault).
       health     — Vault health report. Optional: checks (list of: orphans, stubs, broken_links, validation, duplicates).
@@ -168,6 +168,8 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
             metadata=kwargs.get("metadata"),
             body=kwargs.get("body"),
             append=kwargs.get("append", False),
+            section=kwargs.get("section"),
+            section_content=kwargs.get("section_content"),
         )
 
     elif action == "search":

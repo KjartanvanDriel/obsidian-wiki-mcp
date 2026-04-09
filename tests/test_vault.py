@@ -142,6 +142,49 @@ def test_update_body_replace(vault: Vault):
     assert "Old body." not in read["body"]
 
 
+def test_update_section_replace(vault: Vault):
+    body = "# Intro\n\nSome intro.\n\n## Details\n\nOld details.\n\n## See Also\n\n- old link"
+    vault.create_page(page_type="concept", title="Sectioned", metadata={"status": "draft", "tags": ["a"]}, body=body)
+    result = vault.update_page("Sectioned", section="Details", section_content="New details here.")
+    assert result.get("updated") is True
+    read = vault.read_page("Sectioned")
+    assert "New details here." in read["body"]
+    assert "Old details." not in read["body"]
+    # Other sections preserved
+    assert "Some intro." in read["body"]
+    assert "- old link" in read["body"]
+
+
+def test_update_section_append(vault: Vault):
+    body = "## Items\n\n- first\n- second\n\n## Footer\n\nEnd."
+    vault.create_page(page_type="concept", title="Appendable Section", metadata={"status": "draft", "tags": ["a"]}, body=body)
+    result = vault.update_page("Appendable Section", section="Items", body="- third", append=True)
+    assert result.get("updated") is True
+    read = vault.read_page("Appendable Section")
+    assert "- first" in read["body"]
+    assert "- second" in read["body"]
+    assert "- third" in read["body"]
+    assert "End." in read["body"]
+
+
+def test_update_section_append_last(vault: Vault):
+    """Append to the last section (no following heading)."""
+    body = "## Notes\n\n- note one"
+    vault.create_page(page_type="concept", title="Last Section", metadata={"status": "draft", "tags": ["a"]}, body=body)
+    result = vault.update_page("Last Section", section="Notes", body="- note two", append=True)
+    assert result.get("updated") is True
+    read = vault.read_page("Last Section")
+    assert "- note one" in read["body"]
+    assert "- note two" in read["body"]
+
+
+def test_update_section_not_found(vault: Vault):
+    vault.create_page(page_type="concept", title="No Section", metadata={"status": "draft", "tags": ["a"]}, body="Just body.")
+    result = vault.update_page("No Section", section="Missing", section_content="New stuff.")
+    assert "error" in result
+    assert "not found" in result["error"].lower()
+
+
 def test_update_not_found(vault: Vault):
     result = vault.update_page("Ghost", metadata={"status": "draft"})
     assert "error" in result
