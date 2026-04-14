@@ -22,6 +22,10 @@ fields:
     type: list
     item_type: wikilink
     default: []
+  related:
+    type: list
+    item_type: wikilink
+    default: []
   sources_used:
     type: list
     item_type: source

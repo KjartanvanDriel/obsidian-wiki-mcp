@@ -239,11 +239,11 @@ def test_search_by_project_filter(vault: Vault):
     vault.create_page(page_type="project", title="FilterProj", metadata={"status": "active", "goal": "test", "tags": ["t"]})
     vault.create_page(
         page_type="decision", title="ProjDec",
-        metadata={"status": "draft", "project": "[[filter-proj|FilterProj]]", "date": "2026-01-01", "decision": "x", "rationale": "y", "tags": ["t"]},
+        metadata={"status": "accepted", "project": "[[filter-proj|FilterProj]]", "date": "2026-01-01", "decision": "x", "rationale": "y", "tags": ["t"]},
     )
     vault.create_page(
         page_type="decision", title="OtherDec",
-        metadata={"status": "draft", "project": "[[other|Other]]", "date": "2026-01-01", "decision": "x", "rationale": "y", "tags": ["t"]},
+        metadata={"status": "accepted", "project": "[[other|Other]]", "date": "2026-01-01", "decision": "x", "rationale": "y", "tags": ["t"]},
     )
     result = vault.search(filters={"project": "FilterProj"})
     assert result["count"] == 1
@@ -706,7 +706,7 @@ def test_project_overview(vault: Vault):
     vault.create_page(
         page_type="decision", title="Use Postgres",
         metadata={
-            "status": "draft",
+            "status": "accepted",
             "project": "[[my-project|My Project]]",
             "date": "2026-01-01", "decision": "Use PG", "rationale": "Battle tested",
             "tags": ["test"],

@@ -29,6 +29,9 @@ fields:
     default: []
   year:
     type: integer
+  venue:
+    type: string
+    default: ""
   tags:
     type: list
     item_type: string

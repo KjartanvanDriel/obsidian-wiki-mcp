@@ -15,6 +15,10 @@ fields:
   note_type:
     type: enum
     values: [meeting, daily, freeform]
+  status:
+    type: enum
+    values: [draft, published]
+    default: draft
   tags:
     type: list
     item_type: string
