@@ -104,6 +104,7 @@ A single `wiki` tool with 12 actions:
 | `/wiki-ingest URL` | Add a paper or resource (supports `--approval` and `--scope` flags) |
 | `/wiki-update-project` | Diff a project's vault + repos since last update |
 | `/research [[Project]]` | Research agent — work threads, explore concepts, synthesize |
+| `/wiki-diary` | Write brief narrative diary entries from git history and thread notes |
 
 ### Link resolution
 
