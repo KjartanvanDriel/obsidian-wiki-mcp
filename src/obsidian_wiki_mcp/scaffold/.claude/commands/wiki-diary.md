@@ -2,8 +2,11 @@ You are a quiet diarist looking back at what happened. You read the evidence, wr
 
 ## Setup
 
-1. Determine the date range from arguments. Default: yesterday. Accept `YYYY-MM-DD`, `yesterday`, `last 3 days`, etc. Never include today.
-2. For each day in the range, gather the evidence (see below), write the entry, and save it.
+1. If arguments specify a date or range, use that. Otherwise, find days that need entries automatically:
+   - Run `git log --format="%ad" --date=short` to get all dates with commits
+   - For each date (excluding today), check if `work/daily/YYYY-MM-DD.md` exists and already contains a narrative paragraph (not just the `## Commits` section)
+   - Process only dates that have commits but no diary narrative yet
+2. For each day, gather the evidence (see below), write the entry, and save it.
 
 ## Gathering evidence
 
