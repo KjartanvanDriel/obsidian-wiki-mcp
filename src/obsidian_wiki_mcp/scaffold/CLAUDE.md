@@ -14,9 +14,13 @@ _wiki/style-guide.md  → writing conventions — read before writing content
 references.bib        → BibTeX citations
 ```
 
-## Tool
+## Tool conventions
 
-All operations go through the `wiki` MCP tool. Actions: create, read, update, search, validate, health, project, links, provenance, commit, style, move_file.
+**Wiki pages** — always use the `wiki` MCP tool. Actions: create, read, update, search, validate, health, project, links, provenance, commit, style, move_file. Never read or write wiki pages via the filesystem directly.
+
+**Project files** (threads/, todos.md, project page) — use the filesystem (Read, Write, Edit). These are excluded from MCP indexing.
+
+**Choices** — always use `AskUserQuestion` with `multiSelect: true` when presenting options to the user (proposed pages, fixes, threads to pursue). Never use text checklists.
 
 ## Rules
 

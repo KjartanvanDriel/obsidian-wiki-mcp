@@ -43,7 +43,7 @@ Parse these from the arguments if provided. Defaults apply if omitted.
    - **appendix**: list all related concepts in a `## Related concepts` section at the bottom of the resource page — do NOT create any pages, skip to step 9
 
 8. Create concept stubs based on **approval**:
-   - **checked**: present the list of proposed concepts to the user with checkboxes. Wait for their selection before creating any stubs.
+   - **checked**: use `AskUserQuestion` with `multiSelect: true` to present proposed concepts. Only create stubs for the ones the user selects.
    - **autonomous**: create stubs immediately
    - Each stub gets: `status: stub`, tags inferred from the resource, a one-line body, and `## Our usage` with `TODO — link to relevant projects when created.` if no projects exist
 

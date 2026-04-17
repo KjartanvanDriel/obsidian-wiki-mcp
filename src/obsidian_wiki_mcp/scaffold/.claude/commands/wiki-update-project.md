@@ -31,6 +31,7 @@ Parse from arguments if provided:
 - Also diff any knowledge-layer pages linked from the project
 
 **For each linked repo:**
+- First, follow the external repo access protocol in CLAUDE.md (check `additionalDirectories`, ask before reading)
 - Get its `last_surveyed` commit hash from the `repos` metadata
 - If set: `git diff {last_surveyed}..HEAD` in that repo
 - If not set (first survey): scan the repo broadly — README, directory structure, dependencies, recent git log (last 20 commits)
@@ -50,25 +51,7 @@ From the diffs, identify:
 Based on **approval** mode:
 
 **checked (default):**
-Present a summary grouped by category:
-```
-## Survey: {Project Name}
-
-### Vault changes since {last_vault_survey}
-- {summary of wiki changes}
-
-### Repo changes since {last_surveyed} ({repo path})
-- {summary of code changes}
-
-### Proposed wiki updates
-- [ ] Create concept: {name} — {reason}
-- [ ] Create tool: {name} — {reason}
-- [ ] Create decision: {name} — {reason}
-- [ ] Update project status: {old} → {new}
-- [ ] Flag stale: {page} — {reason}
-
-Which of these should I proceed with?
-```
+Present a brief summary of vault and repo changes, then use `AskUserQuestion` with `multiSelect: true` to let the user pick which updates to proceed with. Each option should describe the proposed change (e.g. "Create concept: FAISS — referenced in 3 files").
 
 **autonomous:**
 Proceed with all proposed updates without asking.
@@ -84,7 +67,7 @@ For each approved update:
 
 After all changes:
 - Update the project page's `last_vault_survey` to the current vault HEAD commit
-- Update each repo's `last_surveyed` to its current HEAD commit
+- Update each repo's `last_surveyed`: read the full `repos` list from metadata, update the relevant entry's `last_surveyed` field, and write the entire list back via `wiki(action="update", title="...", metadata={"repos": [...]})`
 - Update the project page's status/body if warranted
 
 ### 7. Commit
