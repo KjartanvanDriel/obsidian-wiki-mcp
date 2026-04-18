@@ -26,6 +26,10 @@ fields:
     type: list
     item_type: string
     default: []
+  status:
+    type: enum
+    values: [stub, draft, published]
+    default: draft
   related_projects:
     type: list
     item_type: wikilink
