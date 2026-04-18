@@ -40,17 +40,26 @@ Parse these from the arguments if provided. Defaults apply if omitted.
 7. Identify concepts to link based on **scope**:
    - **central**: pick the 3-5 most important concepts mentioned in the resource
    - **thorough**: pick all concepts that warrant their own wiki page
-   - **appendix**: list all related concepts in a `## Related concepts` section at the bottom of the resource page — do NOT create any pages, skip to step 9
+   - **appendix**: list all related concepts in a `## Related concepts` section at the bottom of the resource page — do NOT create any pages, skip to step 10
 
 8. Create concept stubs based on **approval**:
    - **checked**: use `AskUserQuestion` with `multiSelect: true` to present proposed concepts. Only create stubs for the ones the user selects.
    - **autonomous**: create stubs immediately
    - Each stub gets: `status: stub`, tags inferred from the resource, a one-line body, and `## Our usage` with `TODO — link to relevant projects when created.` if no projects exist
 
-9. Validate the resource page and any stubs:
-   `wiki(action="validate", title="...")`
+9. Populate person pages for the resource's authors:
+   - Dry-run to see who'd be created and who matches an existing page:
+     `wiki(action="ingest_authors", resource="...")`
+   - Under **checked**: present the `new_candidates` list via `AskUserQuestion` with `multiSelect: true`. Pass the selected names back:
+     `wiki(action="ingest_authors", resource="...", confirmed_names=[...])`
+   - Under **autonomous**: pass all `new_candidates` names directly without asking.
+   - Under **scope=thorough**: additionally scan the resource body for prominently named researchers (acknowledgments, heavily-cited figures) and pass them via `extra_people=[{full, aliases, role}]` on the dry-run. Under **scope=central**, skip the body scan — BibTeX authors only.
+   - This step: adds an `**Authors:**` line to the resource below its H1, sets `metadata.authors`, and creates any new person stubs with `role: author`, `aliases`, and provenance.
 
-10. Ask the user for approval, then commit:
+10. Validate the resource page and any stubs:
+    `wiki(action="validate", title="...")`
+
+11. Ask the user for approval, then commit:
     `wiki(action="commit", message="Ingest: {resource title}")`
 
 $ARGUMENTS

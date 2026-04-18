@@ -12,6 +12,7 @@ from typing import Any
 
 import frontmatter
 
+from . import bibtex as bibtex_lib
 from .models import HealthReport, ValidationError, WikiPage, strip_code
 from .schemas import SchemaRegistry
 
@@ -843,6 +844,223 @@ class Vault:
             "path": str(thread_dir.relative_to(self.root)),
             "landing_page": str(landing.relative_to(self.root)),
         }
+
+    # ── People ingestion ──────────────────────────────────────────────
+
+    def ingest_authors(
+        self,
+        resource: str,
+        bibtex_key: str | None = None,
+        confirmed_names: list[str] | None = None,
+        extra_people: list[dict] | None = None,
+    ) -> dict:
+        """Populate person pages for authors of a resource.
+
+        Two-phase by design:
+          - Dry run (confirmed_names is None): returns existing matches and
+            new candidates; caller decides which to create.
+          - Commit (confirmed_names is a list): creates person stubs for the
+            named new candidates, adds an "Authors:" line to the resource,
+            and updates the resource's `authors` metadata field when present.
+
+        `extra_people` lets callers inject non-BibTeX names (e.g. LLM-scanned
+        body mentions under `scope=thorough`). Shape: [{"full": "Jane Doe",
+        "aliases": ["J. Doe"], "role": "collaborator"}, ...]. Role defaults to
+        "author" for BibTeX entries and "collaborator" for extras.
+        """
+        # Resolve resource
+        path = self._title_to_path(resource)
+        if not path:
+            return {"error": f"Resource not found: {resource}"}
+        page = self._parse_page(path)
+        if not page:
+            return {"error": f"Could not parse page: {resource}"}
+        if page.page_type != "resource":
+            return {"error": f"'{resource}' is not a resource page (type={page.page_type})"}
+
+        # Determine BibTeX key
+        key = bibtex_key or page.metadata.get("bibtex_key", "")
+        candidates: list[dict[str, object]] = []
+
+        if key:
+            bib_path = self.root / "references.bib"
+            parsed = bibtex_lib.extract_authors(bib_path, key)
+            if parsed is None:
+                return {"error": f"BibTeX entry not found: key='{key}' in {bib_path.name}"}
+            for author in parsed:
+                candidates.append({
+                    "full": author["full"],
+                    "aliases": list(author["aliases"]),
+                    "role": "author",
+                    "source": "bibtex",
+                })
+
+        # Append extra people (LLM-scanned or caller-supplied)
+        for extra in extra_people or []:
+            full = extra.get("full") or extra.get("name")
+            if not full:
+                continue
+            candidates.append({
+                "full": full,
+                "aliases": list(extra.get("aliases", [])),
+                "role": extra.get("role", "collaborator"),
+                "source": extra.get("source", "manual"),
+            })
+
+        # Dedup: for each candidate, look up by full name and aliases. First hit
+        # wins. Record both existing matches and fresh candidates.
+        existing_matches: list[dict[str, str]] = []
+        new_candidates: list[dict[str, object]] = []
+        seen_full: set[str] = set()
+
+        for cand in candidates:
+            full = str(cand["full"]).strip()
+            if not full or full.lower() in seen_full:
+                continue
+            seen_full.add(full.lower())
+
+            match_title = self._resolve_person(full, list(cand["aliases"]))
+            if match_title:
+                existing_matches.append({"candidate": full, "page": match_title})
+            else:
+                new_candidates.append({
+                    "full": full,
+                    "aliases": cand["aliases"],
+                    "role": cand["role"],
+                    "source": cand["source"],
+                })
+
+        # Dry-run: return the dedup report
+        if confirmed_names is None:
+            return {
+                "status": "pending",
+                "resource": page.title,
+                "bibtex_key": key or None,
+                "existing_matches": existing_matches,
+                "new_candidates": new_candidates,
+            }
+
+        # Commit phase: create confirmed new stubs
+        created: list[dict[str, str]] = []
+        skipped: list[dict[str, str]] = []
+        name_to_cand = {c["full"]: c for c in new_candidates}
+
+        for name in confirmed_names:
+            cand = name_to_cand.get(name)
+            if not cand:
+                # May already exist (race) or caller typed an unknown name
+                match = self._resolve_person(name, [])
+                if match:
+                    existing_matches.append({"candidate": name, "page": match})
+                else:
+                    skipped.append({"name": name, "reason": "not in proposed candidates"})
+                continue
+
+            stub_body = f"Author on [[{slugify(page.title)}|{page.title}]]. Stub."
+            result = self.create_page(
+                page_type="person",
+                title=cand["full"],
+                metadata={
+                    "role": cand["role"],
+                    "aliases": cand["aliases"],
+                    "sources_used": [
+                        {"type": "context", "ref": f"Ingested from {page.title}"}
+                    ],
+                },
+                body=stub_body,
+            )
+            if result.get("created"):
+                created.append({
+                    "name": cand["full"],
+                    "path": result["path"],
+                })
+            else:
+                skipped.append({"name": cand["full"], "reason": result.get("error", "unknown")})
+
+        # All people that should end up on the resource page (existing + newly created)
+        linked_names: list[str] = [m["page"] for m in existing_matches]
+        linked_names.extend(c["name"] for c in created)
+        # De-duplicate while preserving order
+        seen_link: set[str] = set()
+        linked_unique: list[str] = []
+        for n in linked_names:
+            if n not in seen_link:
+                seen_link.add(n)
+                linked_unique.append(n)
+
+        # Update resource body + metadata
+        if linked_unique:
+            self._apply_authors_to_resource(page, linked_unique)
+
+        return {
+            "status": "done",
+            "resource": page.title,
+            "created": created,
+            "existing_matches": existing_matches,
+            "linked": linked_unique,
+            "skipped": skipped,
+        }
+
+    def _resolve_person(self, name: str, aliases: list[str]) -> str | None:
+        """Return the title of an existing person page matching `name` or any
+        alias, or None if no match. Only matches `type: person` pages."""
+        candidates_to_try: list[str] = [name, *aliases]
+        for candidate in candidates_to_try:
+            if not candidate:
+                continue
+            path = self._title_to_path(candidate)
+            if not path:
+                continue
+            existing = self._parse_page(path)
+            if existing and existing.page_type == "person":
+                return existing.title
+        return None
+
+    def _apply_authors_to_resource(self, page: WikiPage, names: list[str]) -> None:
+        """Insert an 'Authors:' line below the H1 and update the `authors`
+        metadata field. Idempotent: replaces an existing 'Authors:' line."""
+        # Build the authors line
+        author_links = ", ".join(
+            f"[[{slugify(n)}|{n}]]" for n in names
+        )
+        authors_line = f"**Authors:** {author_links}"
+
+        body = page.body
+        lines = body.split("\n")
+
+        # If an existing 'Authors:' line exists, replace it. Otherwise insert
+        # just below the first H1.
+        replaced = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith("**Authors:**"):
+                lines[i] = authors_line
+                replaced = True
+                break
+
+        if not replaced:
+            inserted = False
+            for i, line in enumerate(lines):
+                if line.startswith("# "):
+                    # Insert a blank line + authors after H1
+                    insertion = [""] if i + 1 >= len(lines) or lines[i + 1].strip() != "" else []
+                    insertion.append(authors_line)
+                    for off, new_line in enumerate(insertion):
+                        lines.insert(i + 1 + off, new_line)
+                    inserted = True
+                    break
+            if not inserted:
+                # No H1 — prepend
+                lines = [authors_line, ""] + lines
+
+        new_body = "\n".join(lines)
+
+        # Merge into metadata: resource.authors is a list of strings
+        new_metadata = dict(page.metadata)
+        if "authors" in new_metadata:
+            new_metadata["authors"] = names
+
+        abs_path = self.root / page.path
+        self._write_page(abs_path, new_metadata, new_body)
 
     # ── Helpers ───────────────────────────────────────────────────────
 

@@ -38,6 +38,7 @@ Use the `wiki` tool with an `action` parameter. Available actions:
   style   — Read or update the wiki style guide. Read this before writing content.
   move_file — Move/rename a file to attachments with optional BibTeX-key naming
   create_thread — Create a research thread (folder, landing page, index entry)
+  ingest_authors — Populate person pages from a resource's BibTeX authors (dry-run or commit)
 """,
 )
 
@@ -88,6 +89,9 @@ def wiki(
     source: str | None = None,
     destination: str | None = None,
     bibtex_key: str | None = None,
+    resource: str | None = None,
+    confirmed_names: list[str] | None = None,
+    extra_people: list[dict] | None = None,
 ) -> str:
     """
     Structured wiki operations on an Obsidian vault.
@@ -106,6 +110,7 @@ def wiki(
       style      — Read or update the wiki style guide. mode='read' (default): read full or section. mode='update': replace full (content) or patch (section + section_content). mode='init': create default.
       move_file  — Move/rename a file into attachments. Requires: source (path relative to vault root). Optional: destination, bibtex_key.
       create_thread — Create a research thread. Requires: project, title. Optional: body (description). Creates folder, landing page, and index entry.
+      ingest_authors — Populate person pages from a resource's BibTeX entry. Requires: resource (title of resource page). Optional: bibtex_key (overrides resource metadata), confirmed_names (list of candidate names to actually create — omit for dry-run), extra_people (list of {full, aliases, role} for non-BibTeX additions).
     """
     try:
         vault = _get_vault()
@@ -134,6 +139,13 @@ def wiki(
             content=content,
             section=section,
             section_content=section_content,
+            files=files,
+            source=source,
+            destination=destination,
+            bibtex_key=bibtex_key,
+            resource=resource,
+            confirmed_names=confirmed_names,
+            extra_people=extra_people,
         )
     except Exception as e:
         result = {"error": f"Unexpected error: {e}"}
@@ -251,13 +263,24 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
             description=kwargs.get("body", ""),
         )
 
+    elif action == "ingest_authors":
+        resource = kwargs.get("resource") or kwargs.get("title")
+        if not resource:
+            return {"error": "ingest_authors requires 'resource' (or 'title')"}
+        return vault.ingest_authors(
+            resource=resource,
+            bibtex_key=kwargs.get("bibtex_key"),
+            confirmed_names=kwargs.get("confirmed_names"),
+            extra_people=kwargs.get("extra_people"),
+        )
+
     else:
         return {
             "error": f"Unknown action: {action}",
             "available_actions": [
                 "create", "read", "update", "search", "validate",
                 "health", "project", "links", "provenance", "commit",
-                "style", "move_file", "create_thread",
+                "style", "move_file", "create_thread", "ingest_authors",
             ],
         }
 

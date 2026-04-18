@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from obsidian_wiki_mcp import bibtex
 from obsidian_wiki_mcp.schemas import SchemaRegistry
 from obsidian_wiki_mcp.models import strip_code
 from obsidian_wiki_mcp.vault import Vault, slugify
@@ -867,3 +868,299 @@ def test_style_update_section_patch(vault: Vault):
 def test_style_read_no_guide(vault: Vault):
     result = vault.get_style_guide()
     assert "error" in result
+
+
+# ── bibtex parsing ───────────────────────────────────────────────────
+
+
+def test_bibtex_normalize_last_first():
+    n = bibtex.normalize_name("Smith, John")
+    assert n["full"] == "John Smith"
+    assert n["first"] == "John"
+    assert n["last"] == "Smith"
+    # Alias variants include initial form, comma form, and bare last name
+    assert "J. Smith" in n["aliases"]
+    assert "Smith, J." in n["aliases"]
+    assert "Smith, John" in n["aliases"]
+    assert "Smith" in n["aliases"]
+
+
+def test_bibtex_normalize_first_last():
+    n = bibtex.normalize_name("Jane Doe")
+    assert n["full"] == "Jane Doe"
+    assert n["first"] == "Jane"
+    assert n["last"] == "Doe"
+    assert "J. Doe" in n["aliases"]
+
+
+def test_bibtex_normalize_multi_first_name():
+    n = bibtex.normalize_name("Ada Lovelace King")
+    # Last whitespace token is the family name
+    assert n["last"] == "King"
+    assert n["first"] == "Ada Lovelace"
+    assert "A. L. King" in n["aliases"]
+
+
+def test_bibtex_normalize_single_token():
+    n = bibtex.normalize_name("Plato")
+    assert n["full"] == "Plato"
+    assert n["last"] == "Plato"
+    assert n["first"] == ""
+    assert n["aliases"] == []
+
+
+def test_bibtex_parse_entry_and_authors(tmp_path: Path):
+    bib_path = tmp_path / "references.bib"
+    bib_path.write_text(
+        "@article{smith2024,\n"
+        "  author = {Smith, John and Doe, Jane},\n"
+        "  title = {A Paper},\n"
+        "  year = {2024},\n"
+        "}\n"
+        "@book{otherkey,\n"
+        "  author = {Alone, Only},\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    authors = bibtex.extract_authors(bib_path, "smith2024")
+    assert authors is not None
+    assert [a["full"] for a in authors] == ["John Smith", "Jane Doe"]
+
+
+def test_bibtex_parse_missing_key(tmp_path: Path):
+    bib_path = tmp_path / "references.bib"
+    bib_path.write_text("@article{foo,\n  author = {Bar, Baz},\n}\n", encoding="utf-8")
+    assert bibtex.extract_authors(bib_path, "nonexistent") is None
+
+
+def test_bibtex_parse_missing_file(tmp_path: Path):
+    assert bibtex.extract_authors(tmp_path / "does-not-exist.bib", "any") is None
+
+
+def test_bibtex_handles_nested_braces_in_title(tmp_path: Path):
+    """Titles commonly contain nested braces like `{EU}` for casing protection.
+    The entry parser must not choke on them."""
+    bib_path = tmp_path / "references.bib"
+    bib_path.write_text(
+        "@article{nested2024,\n"
+        "  author = {Glencross, Andrew},\n"
+        "  title  = {The Geopolitics of Supply Chains: {EU} Efforts to Ensure Security of Supply},\n"
+        "  year   = {2024},\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    authors = bibtex.extract_authors(bib_path, "nested2024")
+    assert authors is not None
+    assert [a["full"] for a in authors] == ["Andrew Glencross"]
+
+
+def test_bibtex_handles_firstlast_form(tmp_path: Path):
+    bib_path = tmp_path / "references.bib"
+    bib_path.write_text(
+        "@article{mixedforms,\n"
+        '  author = "John Smith and Jane Doe",\n'
+        "}\n",
+        encoding="utf-8",
+    )
+    authors = bibtex.extract_authors(bib_path, "mixedforms")
+    assert authors is not None
+    assert [a["full"] for a in authors] == ["John Smith", "Jane Doe"]
+
+
+# ── person schema ────────────────────────────────────────────────────
+
+
+def test_person_schema_accepts_aliases_and_sources_used(vault: Vault):
+    """The person schema should accept both fields (added 2026-04-18)."""
+    result = vault.create_page(
+        page_type="person",
+        title="Test Author",
+        metadata={
+            "role": "author",
+            "aliases": ["T. Author"],
+            "sources_used": [{"type": "context", "ref": "test"}],
+        },
+    )
+    assert result.get("created") is True
+    read = vault.read_page("Test Author")
+    assert read["metadata"]["aliases"] == ["T. Author"]
+    assert read["metadata"]["sources_used"] == [{"type": "context", "ref": "test"}]
+
+
+def test_person_alias_resolves_to_title(vault: Vault):
+    """_title_to_path should resolve via an alias."""
+    vault.create_page(
+        page_type="person",
+        title="Jane Doe",
+        metadata={"role": "author", "aliases": ["J. Doe", "Doe, J."]},
+    )
+    found = vault._title_to_path("J. Doe")
+    assert found is not None
+    assert vault._parse_page(found).title == "Jane Doe"
+
+
+# ── ingest_authors ───────────────────────────────────────────────────
+
+
+def _make_resource_with_bibtex(vault: Vault, tmp_path: Path, bibtex_body: str, key: str = "smith2024") -> None:
+    """Helper: write references.bib and create a resource page pointing at it."""
+    (tmp_path / "references.bib").write_text(bibtex_body, encoding="utf-8")
+    vault.create_page(
+        page_type="resource",
+        title="Test Paper",
+        metadata={
+            "resource_type": "paper",
+            "status": "unread",
+            "bibtex_key": key,
+        },
+        body="# Test Paper\n\nSome notes.\n",
+    )
+
+
+def test_ingest_authors_errors_when_resource_missing(vault: Vault):
+    result = vault.ingest_authors(resource="Nonexistent Resource")
+    assert "error" in result
+    assert "not found" in result["error"].lower()
+
+
+def test_ingest_authors_errors_on_non_resource(vault: Vault):
+    vault.create_page(
+        page_type="concept",
+        title="Not A Resource",
+        metadata={"status": "draft", "tags": ["x"]},
+    )
+    result = vault.ingest_authors(resource="Not A Resource")
+    assert "error" in result
+    assert "not a resource" in result["error"].lower()
+
+
+def test_ingest_authors_errors_when_bibtex_key_missing(vault: Vault, tmp_path: Path):
+    _make_resource_with_bibtex(
+        vault,
+        tmp_path,
+        "@article{nope,\n  author = {A, B},\n}\n",
+        key="wrongkey",
+    )
+    result = vault.ingest_authors(resource="Test Paper")
+    assert "error" in result
+    assert "BibTeX entry not found" in result["error"]
+
+
+def test_ingest_authors_dry_run_returns_candidates(vault: Vault, tmp_path: Path):
+    _make_resource_with_bibtex(
+        vault,
+        tmp_path,
+        "@article{smith2024,\n  author = {Smith, John and Doe, Jane},\n}\n",
+    )
+    result = vault.ingest_authors(resource="Test Paper")
+    assert result["status"] == "pending"
+    assert [c["full"] for c in result["new_candidates"]] == ["John Smith", "Jane Doe"]
+    # No existing matches — nothing created
+    assert result["existing_matches"] == []
+
+
+def test_ingest_authors_dedupes_via_existing_alias(vault: Vault, tmp_path: Path):
+    """If a person exists with an alias that matches a BibTeX author, reuse them."""
+    vault.create_page(
+        page_type="person",
+        title="John Smith",
+        metadata={"role": "author", "aliases": ["J. Smith", "Smith, J."]},
+    )
+    _make_resource_with_bibtex(
+        vault,
+        tmp_path,
+        "@article{smith2024,\n  author = {Smith, John and Doe, Jane},\n}\n",
+    )
+    result = vault.ingest_authors(resource="Test Paper")
+    assert result["status"] == "pending"
+    existing_names = [m["page"] for m in result["existing_matches"]]
+    assert "John Smith" in existing_names
+    # Jane Doe is still a new candidate
+    assert [c["full"] for c in result["new_candidates"]] == ["Jane Doe"]
+
+
+def test_ingest_authors_commit_creates_stubs_and_links_resource(vault: Vault, tmp_path: Path):
+    _make_resource_with_bibtex(
+        vault,
+        tmp_path,
+        "@article{smith2024,\n  author = {Smith, John and Doe, Jane},\n}\n",
+    )
+    result = vault.ingest_authors(
+        resource="Test Paper",
+        confirmed_names=["John Smith", "Jane Doe"],
+    )
+    assert result["status"] == "done"
+    assert len(result["created"]) == 2
+    assert result["linked"] == ["John Smith", "Jane Doe"]
+
+    # Person pages exist with expected aliases
+    js = vault.read_page("John Smith")
+    assert js["metadata"]["role"] == "author"
+    assert "J. Smith" in js["metadata"]["aliases"]
+    assert js["metadata"]["sources_used"][0]["ref"].endswith("Test Paper")
+
+    # Resource page body includes Authors line below the H1
+    resource = vault.read_page("Test Paper")
+    body_lines = resource["body"].split("\n")
+    assert body_lines[0] == "# Test Paper"
+    authors_line = next(l for l in body_lines if l.startswith("**Authors:**"))
+    assert "[[john-smith|John Smith]]" in authors_line
+    assert "[[jane-doe|Jane Doe]]" in authors_line
+
+    # Resource metadata.authors updated
+    assert resource["metadata"]["authors"] == ["John Smith", "Jane Doe"]
+
+
+def test_ingest_authors_commit_links_existing_plus_new(vault: Vault, tmp_path: Path):
+    """Existing person + new person both land in the resource's Authors line."""
+    vault.create_page(
+        page_type="person",
+        title="John Smith",
+        metadata={"role": "author", "aliases": ["J. Smith"]},
+    )
+    _make_resource_with_bibtex(
+        vault,
+        tmp_path,
+        "@article{smith2024,\n  author = {Smith, John and Doe, Jane},\n}\n",
+    )
+    result = vault.ingest_authors(
+        resource="Test Paper",
+        confirmed_names=["Jane Doe"],  # Only confirm the new one
+    )
+    assert result["status"] == "done"
+    assert [c["name"] for c in result["created"]] == ["Jane Doe"]
+    assert result["linked"] == ["John Smith", "Jane Doe"]
+
+
+def test_ingest_authors_is_idempotent_on_authors_line(vault: Vault, tmp_path: Path):
+    """Re-running ingest_authors on a committed resource should replace, not duplicate."""
+    _make_resource_with_bibtex(
+        vault,
+        tmp_path,
+        "@article{smith2024,\n  author = {Smith, John},\n}\n",
+    )
+    vault.ingest_authors(resource="Test Paper", confirmed_names=["John Smith"])
+    # Second pass (dedup says existing, still updates the Authors line)
+    vault.ingest_authors(resource="Test Paper", confirmed_names=[])
+    resource = vault.read_page("Test Paper")
+    authors_lines = [l for l in resource["body"].split("\n") if l.startswith("**Authors:**")]
+    assert len(authors_lines) == 1
+    assert "[[john-smith|John Smith]]" in authors_lines[0]
+
+
+def test_ingest_authors_extra_people_included(vault: Vault, tmp_path: Path):
+    """extra_people (e.g. LLM-scanned mentions) appear alongside BibTeX authors."""
+    _make_resource_with_bibtex(
+        vault,
+        tmp_path,
+        "@article{smith2024,\n  author = {Smith, John},\n}\n",
+    )
+    result = vault.ingest_authors(
+        resource="Test Paper",
+        extra_people=[{"full": "Ada Lovelace", "aliases": ["A. Lovelace"], "role": "collaborator"}],
+    )
+    new_names = [c["full"] for c in result["new_candidates"]]
+    assert new_names == ["John Smith", "Ada Lovelace"]
+    # Role preserved on the extra
+    ada = next(c for c in result["new_candidates"] if c["full"] == "Ada Lovelace")
+    assert ada["role"] == "collaborator"
