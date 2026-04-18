@@ -37,6 +37,7 @@ Use the `wiki` tool with an `action` parameter. Available actions:
   commit  — Git commit all current changes
   style   — Read or update the wiki style guide. Read this before writing content.
   move_file — Move/rename a file to attachments with optional BibTeX-key naming
+  create_thread — Create a research thread (folder, landing page, index entry)
 """,
 )
 
@@ -104,6 +105,7 @@ def wiki(
       commit     — Git commit. Requires: message. Optional: files (list of paths to stage; omit for all).
       style      — Read or update the wiki style guide. mode='read' (default): read full or section. mode='update': replace full (content) or patch (section + section_content). mode='init': create default.
       move_file  — Move/rename a file into attachments. Requires: source (path relative to vault root). Optional: destination, bibtex_key.
+      create_thread — Create a research thread. Requires: project, title. Optional: body (description). Creates folder, landing page, and index entry.
     """
     try:
         vault = _get_vault()
@@ -238,13 +240,24 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
             bibtex_key=kwargs.get("bibtex_key"),
         )
 
+    elif action == "create_thread":
+        if not kwargs.get("project"):
+            return {"error": "create_thread requires 'project'"}
+        if not kwargs.get("title"):
+            return {"error": "create_thread requires 'title'"}
+        return vault.create_thread(
+            project=kwargs["project"],
+            title=kwargs["title"],
+            description=kwargs.get("body", ""),
+        )
+
     else:
         return {
             "error": f"Unknown action: {action}",
             "available_actions": [
                 "create", "read", "update", "search", "validate",
                 "health", "project", "links", "provenance", "commit",
-                "style", "move_file",
+                "style", "move_file", "create_thread",
             ],
         }
 

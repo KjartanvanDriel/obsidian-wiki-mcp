@@ -16,7 +16,7 @@ references.bib        → BibTeX citations
 
 ## Tool conventions
 
-**Wiki pages** — always use the `wiki` MCP tool. Actions: create, read, update, search, validate, health, project, links, provenance, commit, style, move_file. Never read or write wiki pages via the filesystem directly.
+**Wiki pages** — always use the `wiki` MCP tool. Actions: create, read, update, search, validate, health, project, links, provenance, commit, style, move_file, create_thread. Never read or write wiki pages via the filesystem directly.
 
 **Project files** (threads/, todos.md, project page) — use the filesystem (Read, Write, Edit). These are excluded from MCP indexing.
 

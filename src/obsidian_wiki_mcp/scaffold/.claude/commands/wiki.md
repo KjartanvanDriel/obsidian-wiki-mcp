@@ -18,6 +18,7 @@ Follow the rules in CLAUDE.md. Read the style guide before writing: `wiki(action
 | commit | message. Optional: files (list of paths) |
 | style | Optional: mode (read/update/init), section, content, section_content |
 | move_file | source. Optional: destination, bibtex_key |
+| create_thread | project, title. Optional: body (description) |
 
 ## Page types
 

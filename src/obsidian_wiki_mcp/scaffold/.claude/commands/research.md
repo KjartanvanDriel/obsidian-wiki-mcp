@@ -68,9 +68,11 @@ Each entry is a one-line summary with a wikilink to the thread's landing page.
 
 ### Opening a new thread
 
-1. Create the folder: `threads/{thread-slug}/`
-2. Create the landing page: `threads/{thread-slug}/{thread-slug}.md` with the thread description, status, and open questions
-3. Add an entry to `## Active` in `index.md` using `[[{thread-slug}/{thread-slug}|{thread-slug}]]` — the full path is required to avoid resolving to the folder
+Use the MCP tool:
+```
+wiki(action="create_thread", project="Project Name", title="Thread Title", body="One-line description")
+```
+This creates the folder, landing page, and index entry automatically.
 
 ### Thread landing page
 

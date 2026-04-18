@@ -773,6 +773,77 @@ class Vault:
             "to": str(final_path.relative_to(self.root)),
         }
 
+    # ── Threads ───────────────────────────────────────────────────────
+
+    def create_thread(self, project: str, title: str, description: str = "") -> dict:
+        """Create a new research thread: folder, landing page, and index entry."""
+        # Find the project
+        project_path = self._title_to_path(project)
+        if not project_path:
+            return {"error": f"Project not found: {project}"}
+        project_page = self._parse_page(project_path)
+        if not project_page or project_page.page_type != "project":
+            return {"error": f"'{project}' is not a project page"}
+
+        project_dir = self.root / project_page.path.parent
+        threads_dir = project_dir / "threads"
+        thread_slug = slugify(title)
+
+        # Check thread doesn't already exist
+        thread_dir = threads_dir / thread_slug
+        if thread_dir.exists():
+            return {"error": f"Thread already exists: {thread_slug}"}
+
+        # Ensure threads/index.md exists
+        index_path = threads_dir / "index.md"
+        if not index_path.exists():
+            threads_dir.mkdir(parents=True, exist_ok=True)
+            index_path.write_text("# Threads\n\n## Active\n\n## Resolved\n", encoding="utf-8")
+
+        # Create thread folder and landing page
+        thread_dir.mkdir(parents=True, exist_ok=True)
+        landing = thread_dir / f"{thread_slug}.md"
+        landing_content = f"# {title}\n\n**Status**: exploring\n**Opened**: {date.today().isoformat()}\n"
+        if description:
+            landing_content += f"\n{description}\n"
+        landing.write_text(landing_content, encoding="utf-8")
+
+        # Add entry to index.md under ## Active
+        index_content = index_path.read_text(encoding="utf-8")
+        lines = index_content.split("\n")
+        summary = f" — {description}" if description else ""
+        entry = f"- [[{thread_slug}/{thread_slug}|{thread_slug}]]{summary}"
+
+        # Find ## Active and insert after it
+        inserted = False
+        for i, line in enumerate(lines):
+            if line.strip() == "## Active":
+                # Find the insertion point (after existing entries, before next heading or blank gap)
+                insert_at = i + 1
+                while insert_at < len(lines) and lines[insert_at].startswith("- "):
+                    insert_at += 1
+                # Skip one blank line if present
+                if insert_at < len(lines) and lines[insert_at].strip() == "":
+                    lines.insert(insert_at, entry)
+                else:
+                    lines.insert(insert_at, entry)
+                inserted = True
+                break
+
+        if not inserted:
+            # No ## Active found, append
+            lines.append(f"\n## Active\n\n{entry}")
+
+        index_path.write_text("\n".join(lines), encoding="utf-8")
+
+        return {
+            "created": True,
+            "thread": thread_slug,
+            "project": project_page.title,
+            "path": str(thread_dir.relative_to(self.root)),
+            "landing_page": str(landing.relative_to(self.root)),
+        }
+
     # ── Helpers ───────────────────────────────────────────────────────
 
     # ── Style Guide ───────────────────────────────────────────────────

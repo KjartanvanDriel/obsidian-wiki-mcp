@@ -639,6 +639,53 @@ def test_health_stubs(vault: Vault):
     assert "Stubby" in report["stubs"]
 
 
+# ── create_thread ────────────────────────────────────────────────────
+
+
+def test_create_thread(vault: Vault):
+    vault.create_page(page_type="project", title="Thread Project", metadata={"status": "active", "goal": "test", "tags": ["t"]})
+    result = vault.create_thread("Thread Project", "My Research Question", description="Can we do X?")
+    assert result.get("created") is True
+    assert result["thread"] == "my-research-question"
+
+    # Landing page exists
+    landing = vault.root / result["landing_page"]
+    assert landing.exists()
+    content = landing.read_text()
+    assert "My Research Question" in content
+    assert "Can we do X?" in content
+    assert "exploring" in content
+
+    # Index updated
+    index = vault.root / result["path"].rsplit("/", 1)[0] / "index.md"
+    index_content = index.read_text()
+    assert "my-research-question/my-research-question" in index_content
+    assert "Can we do X?" in index_content
+
+
+def test_create_thread_duplicate(vault: Vault):
+    vault.create_page(page_type="project", title="Dup Thread Proj", metadata={"status": "active", "goal": "test", "tags": ["t"]})
+    vault.create_thread("Dup Thread Proj", "First Thread")
+    result = vault.create_thread("Dup Thread Proj", "First Thread")
+    assert "error" in result
+    assert "already exists" in result["error"].lower()
+
+
+def test_create_thread_project_not_found(vault: Vault):
+    result = vault.create_thread("Nonexistent Project", "Some Thread")
+    assert "error" in result
+
+
+def test_create_thread_creates_index(vault: Vault):
+    """If threads/index.md doesn't exist yet, create_thread should create it."""
+    vault.create_page(page_type="project", title="Fresh Project", metadata={"status": "active", "goal": "test", "tags": ["t"]})
+    result = vault.create_thread("Fresh Project", "First Thread")
+    assert result.get("created") is True
+    index = vault.root / "work" / "projects" / "fresh-project" / "threads" / "index.md"
+    assert index.exists()
+    assert "## Active" in index.read_text()
+
+
 # ── links ────────────────────────────────────────────────────────────
 
 
