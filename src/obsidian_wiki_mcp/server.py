@@ -39,6 +39,8 @@ Use the `wiki` tool with an `action` parameter. Available actions:
   move_file — Move/rename a file to attachments with optional BibTeX-key naming
   create_thread — Create a research thread (folder, landing page, index entry)
   ingest_authors — Populate person pages from a resource's BibTeX authors (dry-run or commit)
+
+Page types include: project, concept, decision, deliverable, experiment, meeting, note, person, resource, task, tool.
 """,
 )
 
@@ -303,6 +305,7 @@ _SYNC_PATHS = [
     ".claude/commands/wiki-update-project.md",
     ".claude/commands/research.md",
     ".claude/commands/wiki-diary.md",
+    ".claude/commands/meeting.md",
     "CLAUDE.md",
 ]
 
@@ -313,6 +316,7 @@ _SYNC_IF_UNCHANGED_PATHS = [
     "_schemas/decision.yaml",
     "_schemas/deliverable.yaml",
     "_schemas/experiment.yaml",
+    "_schemas/meeting.yaml",
     "_schemas/note.yaml",
     "_schemas/person.yaml",
     "_schemas/project.yaml",

@@ -1148,6 +1148,84 @@ def test_ingest_authors_is_idempotent_on_authors_line(vault: Vault, tmp_path: Pa
     assert "[[john-smith|John Smith]]" in authors_lines[0]
 
 
+# ── meeting schema ───────────────────────────────────────────────────
+
+
+def test_meeting_schema_requires_participants(vault: Vault):
+    """Creating a meeting without participants must fail validation."""
+    result = vault.create_page(
+        page_type="meeting",
+        title="Meeting Stefan 2026-04-20",
+        metadata={},
+    )
+    assert "error" in result
+    assert any("participants" in d.get("field", "") for d in result.get("details", []))
+
+
+def test_meeting_creation_lands_in_work_meetings(vault: Vault):
+    """A meeting with participants creates a file under work/meetings/."""
+    # Create the participant stub first (required for validation — the schema
+    # lists participants as a list of wikilinks but the validator doesn't
+    # resolve them, so raw names work fine for the schema layer).
+    vault.create_page(
+        page_type="person",
+        title="Stefan",
+        metadata={"role": "collaborator"},
+    )
+    result = vault.create_page(
+        page_type="meeting",
+        title="Meeting Stefan 2026-04-20",
+        metadata={"participants": ["[[stefan|Stefan]]"]},
+        body="Discussion of prediction figures.\n",
+    )
+    assert result.get("created") is True
+    # Path should be under work/meetings/ (flat folder per schema)
+    assert "work/meetings" in result["path"]
+    assert result["path"].endswith("meeting-stefan-2026-04-20.md")
+
+
+def test_meeting_is_readable_and_has_participants_field(vault: Vault):
+    vault.create_page(page_type="person", title="Stefan", metadata={"role": "collaborator"})
+    vault.create_page(
+        page_type="meeting",
+        title="Meeting Stefan 2026-04-20",
+        metadata={"participants": ["[[stefan|Stefan]]"]},
+    )
+    read = vault.read_page("Meeting Stefan 2026-04-20")
+    assert read["type"] == "meeting"
+    assert read["metadata"]["participants"] == ["[[stefan|Stefan]]"]
+
+
+def test_meeting_accepts_optional_project(vault: Vault):
+    vault.create_page(page_type="person", title="Stefan", metadata={"role": "collaborator"})
+    result = vault.create_page(
+        page_type="meeting",
+        title="Meeting Stefan About X 2026-04-20",
+        metadata={
+            "participants": ["[[stefan|Stefan]]"],
+            "project": "[[wiki-infrastructure/wiki-infrastructure|Wiki Infrastructure]]",
+            "tags": ["sync"],
+        },
+    )
+    assert result.get("created") is True
+    read = vault.read_page("Meeting Stefan About X 2026-04-20")
+    assert "Wiki Infrastructure" in read["metadata"]["project"]
+    assert read["metadata"]["tags"] == ["sync"]
+
+
+def test_meeting_multiple_participants(vault: Vault):
+    vault.create_page(page_type="person", title="Stefan", metadata={"role": "collaborator"})
+    vault.create_page(page_type="person", title="Viola", metadata={"role": "collaborator"})
+    result = vault.create_page(
+        page_type="meeting",
+        title="Meeting Stefan, Viola 2026-04-20",
+        metadata={"participants": ["[[stefan|Stefan]]", "[[viola|Viola]]"]},
+    )
+    assert result.get("created") is True
+    # Comma gets stripped by slugify
+    assert "meeting-stefan-viola-2026-04-20" in result["path"]
+
+
 def test_ingest_authors_extra_people_included(vault: Vault, tmp_path: Path):
     """extra_people (e.g. LLM-scanned mentions) appear alongside BibTeX authors."""
     _make_resource_with_bibtex(

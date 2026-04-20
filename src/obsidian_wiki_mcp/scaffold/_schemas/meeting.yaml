@@ -1,0 +1,26 @@
+type: meeting
+layer: work
+folder: work/meetings
+
+required_fields:
+  - participants
+
+fields:
+  participants:
+    type: list
+    item_type: wikilink
+  project:
+    type: wikilink
+    default: ""
+  tags:
+    type: list
+    item_type: string
+    default: []
+  aliases:
+    type: list
+    item_type: string
+    default: []
+  sources_used:
+    type: list
+    item_type: source
+    default: []

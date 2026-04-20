@@ -7,6 +7,7 @@ This is a structured Obsidian vault. A human curates the content in Obsidian. Ag
 ```
 knowledge/            → concepts/, tools/, people/, resources/
 work/projects/{name}  → {name}.md, threads/, todos.md, experiments/, deliverables/, decisions/, tasks/, notes/, attachments/
+work/meetings/        → meeting-{person-slug}-YYYY-MM-DD.md (sparse notes, participants + project link via metadata)
 work/daily/           → YYYY-MM-DD.md daily logs (auto-appended on commit)
 to_ingest/            → Drop files here for ingestion via /wiki-ingest
 _schemas/             → YAML type definitions
