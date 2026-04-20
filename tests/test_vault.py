@@ -1148,6 +1148,183 @@ def test_ingest_authors_is_idempotent_on_authors_line(vault: Vault, tmp_path: Pa
     assert "[[john-smith|John Smith]]" in authors_lines[0]
 
 
+# ── audit_threads ────────────────────────────────────────────────────
+
+
+def _make_project(vault: Vault, slug: str) -> Path:
+    """Helper: create a real project + threads/ scaffold on disk."""
+    project_dir = vault.root / "work" / "projects" / slug
+    threads_dir = project_dir / "threads"
+    threads_dir.mkdir(parents=True)
+    # Minimal project page (bypasses schema — we just need the folder to exist)
+    (project_dir / f"{slug}.md").write_text(f"---\ntype: project\nstatus: active\nGoal: x\n---\n\n# {slug}\n", encoding="utf-8")
+    (threads_dir / "index.md").write_text("# Threads\n\n## Active\n\n## Resolved\n", encoding="utf-8")
+    return project_dir
+
+
+def test_audit_threads_clean_vault_has_no_findings(vault: Vault):
+    project_dir = _make_project(vault, "demo-a")
+    # Add a clean thread
+    t = project_dir / "threads" / "good-thread"
+    t.mkdir()
+    (t / "good-thread.md").write_text(
+        "# good-thread\n\n**Status**: exploring\n\nBody.\n",
+        encoding="utf-8",
+    )
+    (t / "2026-04-20-first-session.md").write_text("# 2026-04-20 — First session\n\nNotes.\n", encoding="utf-8")
+    # Register in index
+    index = project_dir / "threads" / "index.md"
+    index.write_text(
+        "# Threads\n\n## Active\n- [[good-thread/good-thread|good-thread]]\n\n## Resolved\n",
+        encoding="utf-8",
+    )
+    report = vault.audit_threads()
+    assert report["summary"]["errors"] == 0
+    assert report["summary"]["warnings"] == 0
+    assert report["summary"]["threads_checked"] == 1
+
+
+def test_audit_threads_flags_bare_date_session(vault: Vault):
+    project_dir = _make_project(vault, "demo-b")
+    t = project_dir / "threads" / "foo"
+    t.mkdir()
+    (t / "foo.md").write_text("# foo\n\n**Status**: exploring\n", encoding="utf-8")
+    (t / "2026-04-20.md").write_text("# 2026-04-20 — something\n", encoding="utf-8")
+    index = project_dir / "threads" / "index.md"
+    index.write_text("# Threads\n\n## Active\n- [[foo/foo|foo]]\n", encoding="utf-8")
+
+    report = vault.audit_threads()
+    kinds = [f["kind"] for f in report["findings"]]
+    assert "filename_bare_date" in kinds
+    assert report["summary"]["errors"] == 0
+    assert report["summary"]["warnings"] >= 1
+
+
+def test_audit_threads_flags_bad_filename(vault: Vault):
+    project_dir = _make_project(vault, "demo-c")
+    t = project_dir / "threads" / "bar"
+    t.mkdir()
+    (t / "bar.md").write_text("# bar\n\n**Status**: exploring\n", encoding="utf-8")
+    (t / "WRONG_NAME.md").write_text("# hi\n", encoding="utf-8")
+    index = project_dir / "threads" / "index.md"
+    index.write_text("# Threads\n\n## Active\n- [[bar/bar|bar]]\n", encoding="utf-8")
+
+    report = vault.audit_threads()
+    kinds = [f["kind"] for f in report["findings"]]
+    assert "filename_bad" in kinds
+    assert any(f["severity"] == "error" and f["kind"] == "filename_bad" for f in report["findings"])
+
+
+def test_audit_threads_flags_missing_h1_on_session(vault: Vault):
+    project_dir = _make_project(vault, "demo-d")
+    t = project_dir / "threads" / "baz"
+    t.mkdir()
+    (t / "baz.md").write_text("# baz\n\n**Status**: exploring\n", encoding="utf-8")
+    # Session note with no H1
+    (t / "2026-04-20-session.md").write_text("No heading, just prose.\n", encoding="utf-8")
+    index = project_dir / "threads" / "index.md"
+    index.write_text("# Threads\n\n## Active\n- [[baz/baz|baz]]\n", encoding="utf-8")
+
+    report = vault.audit_threads()
+    kinds = [f["kind"] for f in report["findings"]]
+    assert "session_missing_h1" in kinds
+
+
+def test_audit_threads_flags_landing_missing_status(vault: Vault):
+    project_dir = _make_project(vault, "demo-e")
+    t = project_dir / "threads" / "quux"
+    t.mkdir()
+    # Landing has H1 but no Status line
+    (t / "quux.md").write_text("# quux\n\nSome text.\n", encoding="utf-8")
+    index = project_dir / "threads" / "index.md"
+    index.write_text("# Threads\n\n## Active\n- [[quux/quux|quux]]\n", encoding="utf-8")
+
+    report = vault.audit_threads()
+    kinds = [f["kind"] for f in report["findings"]]
+    assert "landing_missing_status" in kinds
+
+
+def test_audit_threads_flags_orphan_folder(vault: Vault):
+    project_dir = _make_project(vault, "demo-f")
+    # Thread on disk but NOT in index
+    t = project_dir / "threads" / "orphan"
+    t.mkdir()
+    (t / "orphan.md").write_text("# orphan\n\n**Status**: exploring\n", encoding="utf-8")
+    # Leave index empty (no entry for orphan)
+
+    report = vault.audit_threads()
+    kinds = [f["kind"] for f in report["findings"]]
+    assert "orphan_folder" in kinds
+
+
+def test_audit_threads_flags_index_missing_folder(vault: Vault):
+    project_dir = _make_project(vault, "demo-g")
+    index = project_dir / "threads" / "index.md"
+    index.write_text(
+        "# Threads\n\n## Active\n- [[ghost/ghost|ghost]]\n",
+        encoding="utf-8",
+    )
+    report = vault.audit_threads()
+    kinds = [f["kind"] for f in report["findings"]]
+    assert "index_missing_folder" in kinds
+
+
+def test_audit_threads_flags_broken_sibling_link(vault: Vault):
+    project_dir = _make_project(vault, "demo-h")
+    t = project_dir / "threads" / "sib"
+    t.mkdir()
+    # Landing links to a session note that doesn't exist
+    (t / "sib.md").write_text(
+        "# sib\n\n**Status**: exploring\n\n- [[sib/2026-04-20-missing|missing]]\n",
+        encoding="utf-8",
+    )
+    index = project_dir / "threads" / "index.md"
+    index.write_text("# Threads\n\n## Active\n- [[sib/sib|sib]]\n", encoding="utf-8")
+
+    report = vault.audit_threads()
+    kinds = [f["kind"] for f in report["findings"]]
+    assert "broken_sibling_link" in kinds
+
+
+def test_audit_threads_ignores_non_bullet_wikilinks_in_index(vault: Vault):
+    """Prose wikilinks or path-style cross-references in index.md must not
+    be misread as thread entries."""
+    project_dir = _make_project(vault, "demo-i")
+    # Real thread
+    t = project_dir / "threads" / "real"
+    t.mkdir()
+    (t / "real.md").write_text("# real\n\n**Status**: exploring\n", encoding="utf-8")
+
+    # index.md has the real entry plus some noise:
+    # - a prose mention in a paragraph
+    # - a cross-reference to a decision page via full path
+    index = project_dir / "threads" / "index.md"
+    index.write_text(
+        "# Threads\n\n"
+        "See [[work/projects/demo-i/decisions/some-decision|related decision]] for context.\n\n"
+        "## Active\n"
+        "- [[real/real|real]]\n",
+        encoding="utf-8",
+    )
+
+    report = vault.audit_threads()
+    kinds = [f["kind"] for f in report["findings"]]
+    # Must NOT flag `work` or `demo-i` as index_missing_folder — those
+    # weren't real thread entries.
+    false_positive_targets = [
+        f for f in report["findings"]
+        if f["kind"] == "index_missing_folder" and f["thread"] in {"work", "demo-i", "decisions", "some-decision"}
+    ]
+    assert false_positive_targets == []
+
+
+def test_audit_threads_no_projects(vault: Vault):
+    # Empty vault (no work/projects)
+    report = vault.audit_threads()
+    assert report["summary"]["threads_checked"] == 0
+    assert report["findings"] == []
+
+
 # ── broken-link false positives ──────────────────────────────────────
 
 

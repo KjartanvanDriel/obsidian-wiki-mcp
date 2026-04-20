@@ -39,6 +39,7 @@ Use the `wiki` tool with an `action` parameter. Available actions:
   move_file — Move/rename a file to attachments with optional BibTeX-key naming
   create_thread — Create a research thread (folder, landing page, index entry)
   ingest_authors — Populate person pages from a resource's BibTeX authors (dry-run or commit)
+  audit_threads — Structured audit of thread folders (filename conventions, landing-page shape, sibling-link integrity, index sync)
 
 Page types include: project, concept, decision, deliverable, experiment, meeting, note, person, resource, task, tool.
 """,
@@ -113,6 +114,7 @@ def wiki(
       move_file  — Move/rename a file into attachments. Requires: source (path relative to vault root). Optional: destination, bibtex_key.
       create_thread — Create a research thread. Requires: project, title. Optional: body (description). Creates folder, landing page, and index entry.
       ingest_authors — Populate person pages from a resource's BibTeX entry. Requires: resource (title of resource page). Optional: bibtex_key (overrides resource metadata), confirmed_names (list of candidate names to actually create — omit for dry-run), extra_people (list of {full, aliases, role} for non-BibTeX additions).
+      audit_threads — Walk every project's threads/ folder and return structured findings (filename conventions, landing-page shape, sibling-link integrity, index sync). Read-only. No parameters.
     """
     try:
         vault = _get_vault()
@@ -276,6 +278,9 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
             extra_people=kwargs.get("extra_people"),
         )
 
+    elif action == "audit_threads":
+        return vault.audit_threads()
+
     else:
         return {
             "error": f"Unknown action: {action}",
@@ -283,6 +288,7 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
                 "create", "read", "update", "search", "validate",
                 "health", "project", "links", "provenance", "commit",
                 "style", "move_file", "create_thread", "ingest_authors",
+                "audit_threads",
             ],
         }
 

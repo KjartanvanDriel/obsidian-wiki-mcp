@@ -895,6 +895,263 @@ class Vault:
             "landing_page": str(landing.relative_to(self.root)),
         }
 
+    # ── Threads audit ─────────────────────────────────────────────────
+
+    _SESSION_NOTE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(-[a-z0-9-]+)?\.md$")
+    _BARE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.md$")
+    _STATUS_LINE_RE = re.compile(r"^\*\*Status\*\*\s*:", re.MULTILINE)
+    _INDEX_ENTRY_RE = re.compile(r"\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]")
+    _LANDING_LINK_RE = re.compile(r"\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]")
+
+    def audit_threads(self) -> dict:
+        """Walk every project's threads/ folder, return structured findings.
+
+        Checks:
+          - filename matches YYYY-MM-DD[-topic].md (errors on bad, warns on bare date)
+          - landing page present, has H1 and **Status**: line
+          - session notes have an H1
+          - landing-page wikilinks to siblings resolve
+          - every thread folder is listed in threads/index.md
+          - every index.md entry points to an existing folder
+        """
+        findings: list[dict] = []
+        threads_checked = 0
+
+        projects_root = self.root / "work" / "projects"
+        if not projects_root.exists():
+            return {"findings": [], "summary": {"errors": 0, "warnings": 0, "info": 0, "threads_checked": 0}}
+
+        for project_dir in sorted(projects_root.iterdir()):
+            if not project_dir.is_dir():
+                continue
+            threads_dir = project_dir / "threads"
+            if not threads_dir.exists():
+                continue
+
+            project_name = project_dir.name
+
+            # Parse index.md entries — only bullet-list wikilinks of the
+            # canonical form `- [[slug/slug|name]]` or `- [[slug|name]]`.
+            # Anything else (prose mentions, path-style links to non-threads)
+            # is ignored so we don't flag random cross-references as orphans.
+            index_path = threads_dir / "index.md"
+            index_slugs: set[str] = set()
+            if index_path.exists():
+                index_content = normalize_wikilink_escapes(index_path.read_text(encoding="utf-8"))
+                for line in index_content.splitlines():
+                    m = re.match(r"\s*-\s+\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]", line)
+                    if not m:
+                        continue
+                    target = m.group(1)
+                    parts = target.split("/")
+                    if len(parts) == 1:
+                        index_slugs.add(parts[0].lower())
+                    elif len(parts) == 2 and parts[0] == parts[1]:
+                        # Canonical "slug/slug" form
+                        index_slugs.add(parts[0].lower())
+                    # Paths with more segments (e.g. `work/projects/...`) are
+                    # cross-references, not thread entries; skip.
+
+            # Thread folders on disk
+            disk_slugs: set[str] = set()
+            for entry in sorted(threads_dir.iterdir()):
+                if entry.is_dir():
+                    disk_slugs.add(entry.name.lower())
+                    threads_checked += 1
+                    self._audit_single_thread(entry, project_name, findings)
+
+            # orphan_folder: thread folder exists but not in index
+            for slug in sorted(disk_slugs - index_slugs):
+                findings.append({
+                    "project": project_name,
+                    "thread": slug,
+                    "kind": "orphan_folder",
+                    "severity": "error",
+                    "path": str((threads_dir / slug).relative_to(self.root)),
+                    "detail": f"Thread folder '{slug}' exists but isn't listed in threads/index.md.",
+                })
+
+            # index_missing_folder: index references a slug whose folder doesn't exist
+            for slug in sorted(index_slugs - disk_slugs):
+                findings.append({
+                    "project": project_name,
+                    "thread": slug,
+                    "kind": "index_missing_folder",
+                    "severity": "error",
+                    "path": str(index_path.relative_to(self.root)),
+                    "detail": f"threads/index.md references '{slug}' but no matching folder exists.",
+                })
+
+        errors = sum(1 for f in findings if f["severity"] == "error")
+        warnings = sum(1 for f in findings if f["severity"] == "warning")
+        info = sum(1 for f in findings if f["severity"] == "info")
+        return {
+            "findings": findings,
+            "summary": {
+                "errors": errors,
+                "warnings": warnings,
+                "info": info,
+                "threads_checked": threads_checked,
+            },
+        }
+
+    def _audit_single_thread(self, thread_dir: Path, project: str, findings: list[dict]) -> None:
+        """Check one thread folder's files; append findings in place."""
+        thread_slug = thread_dir.name
+        landing_name = f"{thread_slug}.md"
+        landing_path = thread_dir / landing_name
+
+        # Collect md files directly inside the thread folder
+        md_files: list[Path] = []
+        for entry in sorted(thread_dir.iterdir()):
+            if entry.is_file() and entry.suffix == ".md":
+                md_files.append(entry)
+        file_stems = {p.stem for p in md_files}
+
+        # landing_missing
+        if not landing_path.exists():
+            findings.append({
+                "project": project,
+                "thread": thread_slug,
+                "kind": "landing_missing",
+                "severity": "error",
+                "path": str(thread_dir.relative_to(self.root)),
+                "detail": f"Thread folder is missing its landing page ({landing_name}).",
+            })
+
+        for f in md_files:
+            name = f.name
+            is_landing = name == landing_name
+            is_index = name == "index.md"
+
+            if is_landing:
+                self._audit_landing_page(f, project, thread_slug, file_stems, findings)
+                continue
+            if is_index:
+                # index.md inside a specific thread folder is unusual but tolerated.
+                continue
+
+            # Session note checks
+            if not self._SESSION_NOTE_RE.match(name):
+                findings.append({
+                    "project": project,
+                    "thread": thread_slug,
+                    "kind": "filename_bad",
+                    "severity": "error",
+                    "path": str(f.relative_to(self.root)),
+                    "detail": "Filename doesn't match YYYY-MM-DD[-topic].md (lowercase, kebab).",
+                })
+                continue
+
+            if self._BARE_DATE_RE.match(name):
+                findings.append({
+                    "project": project,
+                    "thread": thread_slug,
+                    "kind": "filename_bare_date",
+                    "severity": "warning",
+                    "path": str(f.relative_to(self.root)),
+                    "detail": "Session note is a bare date; consider adding a topic suffix.",
+                })
+
+            # session_missing_h1
+            try:
+                first_nonempty = next(
+                    (line for line in f.read_text(encoding="utf-8").splitlines() if line.strip()),
+                    "",
+                )
+            except Exception:
+                first_nonempty = ""
+            if not first_nonempty.startswith("# "):
+                findings.append({
+                    "project": project,
+                    "thread": thread_slug,
+                    "kind": "session_missing_h1",
+                    "severity": "warning",
+                    "path": str(f.relative_to(self.root)),
+                    "detail": "Session note has no H1 on its first non-empty line.",
+                })
+
+    def _audit_landing_page(
+        self,
+        landing_path: Path,
+        project: str,
+        thread_slug: str,
+        sibling_stems: set[str],
+        findings: list[dict],
+    ) -> None:
+        """Check landing-page shape and sibling wikilink integrity."""
+        try:
+            content = landing_path.read_text(encoding="utf-8")
+        except Exception:
+            return
+
+        # landing_missing_h1
+        first_nonempty = next(
+            (line for line in content.splitlines() if line.strip()),
+            "",
+        )
+        # Frontmatter may be present; skip it.
+        if first_nonempty == "---":
+            # Strip frontmatter
+            try:
+                post = frontmatter.loads(content)
+                body = post.content
+            except Exception:
+                body = content
+            first_nonempty = next(
+                (line for line in body.splitlines() if line.strip()),
+                "",
+            )
+        else:
+            body = content
+
+        if not first_nonempty.startswith("# "):
+            findings.append({
+                "project": project,
+                "thread": thread_slug,
+                "kind": "landing_missing_h1",
+                "severity": "error",
+                "path": str(landing_path.relative_to(self.root)),
+                "detail": "Thread landing page has no H1.",
+            })
+
+        # landing_missing_status
+        if not self._STATUS_LINE_RE.search(body):
+            findings.append({
+                "project": project,
+                "thread": thread_slug,
+                "kind": "landing_missing_status",
+                "severity": "warning",
+                "path": str(landing_path.relative_to(self.root)),
+                "detail": "Landing page lacks a `**Status**:` line.",
+            })
+
+        # broken_sibling_link: links of the form [[YYYY-MM-DD...]] or [[thread-slug/...]]
+        # that don't point at an existing sibling file.
+        normalized = normalize_wikilink_escapes(strip_code(body))
+        for m in self._LANDING_LINK_RE.finditer(normalized):
+            target = m.group(1)
+            # Resolve to the stem that should exist in this folder
+            if "/" in target:
+                prefix, _, suffix = target.partition("/")
+                if prefix.lower() == thread_slug.lower():
+                    stem = suffix
+                else:
+                    continue  # link to another thread, out of scope here
+            elif self._SESSION_NOTE_RE.match(target + ".md") or self._BARE_DATE_RE.match(target + ".md"):
+                stem = target
+            else:
+                continue  # not a sibling-style link
+            if stem not in sibling_stems:
+                findings.append({
+                    "project": project,
+                    "thread": thread_slug,
+                    "kind": "broken_sibling_link",
+                    "severity": "error",
+                    "path": str(landing_path.relative_to(self.root)),
+                    "detail": f"Wikilink [[{target}]] doesn't resolve to a sibling file in this thread.",
+                })
+
     # ── People ingestion ──────────────────────────────────────────────
 
     def ingest_authors(
