@@ -895,6 +895,280 @@ class Vault:
             "landing_page": str(landing.relative_to(self.root)),
         }
 
+    # ── Daily planner ─────────────────────────────────────────────────
+
+    _TODO_LINE_RE = re.compile(r"^(\s*)- \[([ xX])\]\s+(.*)$")
+    _TODO_DATE_RE = re.compile(r"(?<!\S)@(\d{4}-\d{2}-\d{2})\b")
+    _TODO_PRIO_RE = re.compile(r"(?<!\S)!(high|med|low)\b")
+    _BLAME_DATE_RE = re.compile(r"\S+\s+(?:\S+\s+)?\(.+?(\d{4}-\d{2}-\d{2})")
+
+    def _parse_todo_line(self, line: str) -> dict | None:
+        """Parse one markdown checkbox line into a structured todo.
+
+        Recognises the `@YYYY-MM-DD` and `!high|med|low` suffixes in either
+        order. Returns None if the line isn't a checkbox line.
+        """
+        m = self._TODO_LINE_RE.match(line)
+        if not m:
+            return None
+        indent, checkbox, rest = m.groups()
+
+        date_match = self._TODO_DATE_RE.search(rest)
+        prio_match = self._TODO_PRIO_RE.search(rest)
+
+        # Strip markers from rest to get the clean text
+        text = self._TODO_DATE_RE.sub("", rest)
+        text = self._TODO_PRIO_RE.sub("", text)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        return {
+            "indent": indent,
+            "checked": checkbox.lower() == "x",
+            "text": text,
+            "scheduled": date_match.group(1) if date_match else None,
+            "priority": prio_match.group(1) if prio_match else None,
+        }
+
+    def _todos_files(self) -> list[Path]:
+        """All `todos.md` files under `work/`. The main bucket is per-project
+        (`work/projects/*/todos.md`); a `work/todos.md` global bucket would
+        also be picked up if it existed."""
+        work_dir = self.root / "work"
+        if not work_dir.exists():
+            return []
+        return sorted(work_dir.rglob("todos.md"))
+
+    def _line_ages(self, path: Path) -> dict[int, int]:
+        """Return {1-based-lineno: age_in_days} via `git blame --date=short`.
+
+        On any failure (not a git repo, file not tracked, no git installed)
+        return an empty dict; callers fall back gracefully.
+        """
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(self.root), "blame", "--date=short", str(path)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return {}
+        if result.returncode != 0:
+            return {}
+
+        today = date.today()
+        ages: dict[int, int] = {}
+        for lineno, blame_line in enumerate(result.stdout.splitlines(), start=1):
+            m = self._BLAME_DATE_RE.search(blame_line)
+            if not m:
+                continue
+            try:
+                y, mo, d = map(int, m.group(1).split("-"))
+                line_date = date(y, mo, d)
+            except ValueError:
+                continue
+            ages[lineno] = (today - line_date).days
+        return ages
+
+    def _project_name_from_path(self, path: Path) -> str:
+        """Extract project name from a todos.md path. Returns the project
+        folder name, or empty string for a global work/todos.md."""
+        try:
+            rel = path.relative_to(self.root)
+        except ValueError:
+            return ""
+        parts = rel.parts
+        if len(parts) >= 3 and parts[0] == "work" and parts[1] == "projects":
+            return parts[2]
+        return ""
+
+    def daily_rollup(
+        self,
+        date_: str | None = None,
+        stale_threshold_days: int = 7,
+    ) -> dict:
+        """Scan every todos.md under `work/`, bucket open items by schedule.
+
+        Buckets:
+          scheduled_today — open with @date == today
+          overdue         — open with @date < today
+          upcoming_7d     — open with today < @date <= today+7
+          stale           — open, line is older than `stale_threshold_days` OR
+                            `@date` is older than that threshold
+          unscheduled     — open with no @date
+          done_today      — closed with @date == today (small convenience)
+
+        A single open item may appear in both `overdue` and `stale` if both
+        apply; callers decide how to present them.
+        """
+        if date_:
+            try:
+                y, mo, d = map(int, date_.split("-"))
+                today = date(y, mo, d)
+            except ValueError:
+                return {"error": f"Invalid date: {date_} (expected YYYY-MM-DD)"}
+        else:
+            today = date.today()
+
+        buckets: dict[str, list[dict]] = {
+            "scheduled_today": [],
+            "overdue": [],
+            "upcoming_7d": [],
+            "stale": [],
+            "unscheduled": [],
+            "done_today": [],
+        }
+
+        for path in self._todos_files():
+            project = self._project_name_from_path(path)
+            ages = self._line_ages(path)
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            for lineno, raw in enumerate(lines, start=1):
+                todo = self._parse_todo_line(raw)
+                if not todo:
+                    continue
+                entry = {
+                    "project": project,
+                    "text": todo["text"],
+                    "priority": todo["priority"],
+                    "scheduled": todo["scheduled"],
+                    "source": str(path.relative_to(self.root)),
+                    "line": lineno,
+                }
+
+                # Closed items: only surface those checked off today
+                if todo["checked"]:
+                    if todo["scheduled"] == today.isoformat():
+                        buckets["done_today"].append(entry)
+                    continue
+
+                # Open items
+                scheduled_date: date | None = None
+                if todo["scheduled"]:
+                    try:
+                        sy, smo, sd = map(int, todo["scheduled"].split("-"))
+                        scheduled_date = date(sy, smo, sd)
+                    except ValueError:
+                        scheduled_date = None
+
+                if scheduled_date is None:
+                    buckets["unscheduled"].append(entry)
+                else:
+                    delta = (scheduled_date - today).days
+                    if delta == 0:
+                        buckets["scheduled_today"].append(entry)
+                    elif delta < 0:
+                        buckets["overdue"].append(entry)
+                    elif delta <= 7:
+                        buckets["upcoming_7d"].append(entry)
+                    # > 7 days out: not shown in any bucket (deliberate)
+
+                # Stale (applies to open items only): scheduled date older
+                # than threshold, or line itself older than threshold with no
+                # forward-looking date.
+                age_days = ages.get(lineno)
+                if scheduled_date is not None:
+                    if (today - scheduled_date).days > stale_threshold_days:
+                        buckets["stale"].append(entry)
+                elif age_days is not None and age_days > stale_threshold_days:
+                    buckets["stale"].append(entry)
+
+        summary = {
+            "date": today.isoformat(),
+            "open_total": sum(
+                len(buckets[k]) for k in ("scheduled_today", "overdue", "upcoming_7d", "unscheduled")
+            ),
+            "scheduled_today_count": len(buckets["scheduled_today"]),
+            "overdue_count": len(buckets["overdue"]),
+            "upcoming_7d_count": len(buckets["upcoming_7d"]),
+            "unscheduled_count": len(buckets["unscheduled"]),
+            "stale_count": len(buckets["stale"]),
+            "done_today_count": len(buckets["done_today"]),
+            "stale_threshold_days": stale_threshold_days,
+        }
+        return {"date": today.isoformat(), "summary": summary, **buckets}
+
+    def render_daily(self, date_: str | None = None) -> dict:
+        """Write a regenerable `## Today` section into `work/daily/YYYY-MM-DD.md`.
+
+        The section is a checklist mirroring today's rollup (scheduled_today
+        + overdue + stale, in that order). Anything else in the daily file
+        is preserved. If the file doesn't exist, it's created with a minimal
+        H1 + the `## Today` section.
+        """
+        rollup = self.daily_rollup(date_)
+        if "error" in rollup:
+            return rollup
+        today_iso = rollup["date"]
+
+        daily_dir = self.root / "work" / "daily"
+        daily_dir.mkdir(parents=True, exist_ok=True)
+        daily_path = daily_dir / f"{today_iso}.md"
+
+        section_lines = [f"## Today", ""]
+        if not any(rollup[k] for k in ("scheduled_today", "overdue", "stale")):
+            section_lines.append("_No scheduled, overdue, or stale items._")
+        else:
+            def _render(entry: dict) -> str:
+                prio = f" !{entry['priority']}" if entry["priority"] else ""
+                scheduled = f" @{entry['scheduled']}" if entry["scheduled"] else ""
+                project_tag = f" ({entry['project']})" if entry["project"] else ""
+                return f"- [ ] {entry['text']}{scheduled}{prio}{project_tag}"
+
+            if rollup["overdue"]:
+                section_lines.append("**Overdue:**")
+                section_lines.extend(_render(e) for e in rollup["overdue"])
+                section_lines.append("")
+            if rollup["scheduled_today"]:
+                section_lines.append("**Scheduled today:**")
+                section_lines.extend(_render(e) for e in rollup["scheduled_today"])
+                section_lines.append("")
+            if rollup["stale"]:
+                section_lines.append("**Stale (>7d, consider drop/defer):**")
+                section_lines.extend(_render(e) for e in rollup["stale"])
+                section_lines.append("")
+        section_text = "\n".join(section_lines).rstrip() + "\n"
+
+        # Load or create the daily file
+        if daily_path.exists():
+            content = daily_path.read_text(encoding="utf-8")
+        else:
+            content = f"# {today_iso}\n\n"
+
+        # Replace an existing `## Today` section if present, otherwise append.
+        # A section ends at the next same-or-higher-level heading or EOF.
+        lines = content.splitlines()
+        start = next(
+            (i for i, ln in enumerate(lines) if ln.strip() == "## Today"),
+            None,
+        )
+        if start is not None:
+            end = len(lines)
+            for j in range(start + 1, len(lines)):
+                stripped = lines[j].strip()
+                if stripped.startswith("## ") or stripped.startswith("# "):
+                    end = j
+                    break
+            new_lines = lines[:start] + section_text.splitlines() + [""] + lines[end:]
+        else:
+            new_lines = lines + ["", *section_text.splitlines()]
+
+        new_content = "\n".join(line for line in new_lines) + "\n"
+        # Normalize trailing newlines
+        while new_content.endswith("\n\n\n"):
+            new_content = new_content[:-1]
+        daily_path.write_text(new_content, encoding="utf-8")
+
+        return {
+            "rendered": True,
+            "path": str(daily_path.relative_to(self.root)),
+            "summary": rollup["summary"],
+        }
+
     # ── Threads audit ─────────────────────────────────────────────────
 
     _SESSION_NOTE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(-[a-z0-9-]+)?\.md$")

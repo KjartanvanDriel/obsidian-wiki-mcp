@@ -40,6 +40,8 @@ Use the `wiki` tool with an `action` parameter. Available actions:
   create_thread — Create a research thread (folder, landing page, index entry)
   ingest_authors — Populate person pages from a resource's BibTeX authors (dry-run or commit)
   audit_threads — Structured audit of thread folders (filename conventions, landing-page shape, sibling-link integrity, index sync)
+  daily_rollup — Aggregate open todos across all projects, bucketed by schedule (scheduled_today/overdue/upcoming_7d/stale/unscheduled); read-only
+  render_daily — Write a regenerable `## Today` section into work/daily/YYYY-MM-DD.md from today's rollup
 
 Page types include: project, concept, decision, deliverable, experiment, meeting, note, person, resource, task, tool.
 """,
@@ -95,6 +97,7 @@ def wiki(
     resource: str | None = None,
     confirmed_names: list[str] | None = None,
     extra_people: list[dict] | None = None,
+    date: str | None = None,
 ) -> str:
     """
     Structured wiki operations on an Obsidian vault.
@@ -115,6 +118,8 @@ def wiki(
       create_thread — Create a research thread. Requires: project, title. Optional: body (description). Creates folder, landing page, and index entry.
       ingest_authors — Populate person pages from a resource's BibTeX entry. Requires: resource (title of resource page). Optional: bibtex_key (overrides resource metadata), confirmed_names (list of candidate names to actually create — omit for dry-run), extra_people (list of {full, aliases, role} for non-BibTeX additions).
       audit_threads — Walk every project's threads/ folder and return structured findings (filename conventions, landing-page shape, sibling-link integrity, index sync). Read-only. No parameters.
+      daily_rollup — Aggregate open todos from every work/**/todos.md file, bucketed by schedule. Optional: date (YYYY-MM-DD, defaults to today). Returns scheduled_today, overdue, upcoming_7d, stale, unscheduled, and done_today lists plus a summary. Read-only.
+      render_daily — Generate today's rollup and inject a regenerable `## Today` section into work/daily/YYYY-MM-DD.md. Optional: date. Anything outside the `## Today` section is preserved. Returns the file path and the summary.
     """
     try:
         vault = _get_vault()
@@ -150,6 +155,7 @@ def wiki(
             resource=resource,
             confirmed_names=confirmed_names,
             extra_people=extra_people,
+            date=date,
         )
     except Exception as e:
         result = {"error": f"Unexpected error: {e}"}
@@ -281,6 +287,12 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
     elif action == "audit_threads":
         return vault.audit_threads()
 
+    elif action == "daily_rollup":
+        return vault.daily_rollup(date_=kwargs.get("date"))
+
+    elif action == "render_daily":
+        return vault.render_daily(date_=kwargs.get("date"))
+
     else:
         return {
             "error": f"Unknown action: {action}",
@@ -288,7 +300,7 @@ def _dispatch(vault: Vault, *, action: str, **kwargs) -> dict:
                 "create", "read", "update", "search", "validate",
                 "health", "project", "links", "provenance", "commit",
                 "style", "move_file", "create_thread", "ingest_authors",
-                "audit_threads",
+                "audit_threads", "daily_rollup", "render_daily",
             ],
         }
 
@@ -312,6 +324,7 @@ _SYNC_PATHS = [
     ".claude/commands/research.md",
     ".claude/commands/wiki-diary.md",
     ".claude/commands/meeting.md",
+    ".claude/commands/day.md",
     "CLAUDE.md",
 ]
 

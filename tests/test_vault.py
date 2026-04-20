@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -1146,6 +1147,173 @@ def test_ingest_authors_is_idempotent_on_authors_line(vault: Vault, tmp_path: Pa
     authors_lines = [l for l in resource["body"].split("\n") if l.startswith("**Authors:**")]
     assert len(authors_lines) == 1
     assert "[[john-smith|John Smith]]" in authors_lines[0]
+
+
+# ── daily planner: todo parser + rollup + render ─────────────────────
+
+
+def _seed_todos(vault: Vault, slug: str, lines: list[str]) -> None:
+    """Write a todos.md file into work/projects/{slug}/."""
+    project_dir = vault.root / "work" / "projects" / slug
+    project_dir.mkdir(parents=True, exist_ok=True)
+    (project_dir / "todos.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_parse_todo_line_basic(vault: Vault):
+    t = vault._parse_todo_line("- [ ] write BM25 sketch")
+    assert t is not None
+    assert t["checked"] is False
+    assert t["text"] == "write BM25 sketch"
+    assert t["scheduled"] is None
+    assert t["priority"] is None
+
+
+def test_parse_todo_line_with_date_and_priority_either_order(vault: Vault):
+    a = vault._parse_todo_line("- [ ] draft BM25 sketch @2026-04-20 !high")
+    b = vault._parse_todo_line("- [ ] draft BM25 sketch !high @2026-04-20")
+    for t in (a, b):
+        assert t["text"] == "draft BM25 sketch"
+        assert t["scheduled"] == "2026-04-20"
+        assert t["priority"] == "high"
+
+
+def test_parse_todo_line_checked_and_indented(vault: Vault):
+    t = vault._parse_todo_line("  - [x] subtask @2026-04-19")
+    assert t["checked"] is True
+    assert t["indent"] == "  "
+    assert t["scheduled"] == "2026-04-19"
+
+
+def test_parse_todo_line_ignores_non_checkbox(vault: Vault):
+    assert vault._parse_todo_line("just a sentence") is None
+    assert vault._parse_todo_line("## Heading") is None
+    assert vault._parse_todo_line("- regular bullet, no brackets") is None
+
+
+def test_daily_rollup_buckets(vault: Vault):
+    today = date.today().isoformat()
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    later = (date.today() + timedelta(days=5)).isoformat()
+    far_future = (date.today() + timedelta(days=30)).isoformat()
+
+    _seed_todos(vault, "proj-a", [
+        f"- [ ] scheduled today @{today}",
+        f"- [ ] overdue item @{yesterday}",
+        f"- [ ] tomorrow item @{tomorrow}",
+        f"- [ ] later this week @{later}",
+        f"- [ ] far future @{far_future}",
+        f"- [ ] unscheduled item",
+        f"- [x] done today @{today}",
+    ])
+
+    r = vault.daily_rollup()
+    assert len(r["scheduled_today"]) == 1
+    assert r["scheduled_today"][0]["text"] == "scheduled today"
+    assert len(r["overdue"]) == 1
+    assert len(r["upcoming_7d"]) == 2  # tomorrow + later, both within 7d
+    assert len(r["unscheduled"]) == 1
+    assert len(r["done_today"]) == 1
+    # far_future is > 7 days out — not in upcoming_7d
+    assert all(e["text"] != "far future" for e in r["upcoming_7d"])
+
+
+def test_daily_rollup_stale_from_scheduled_date(vault: Vault):
+    old = (date.today() - timedelta(days=20)).isoformat()
+    _seed_todos(vault, "proj-b", [
+        f"- [ ] been sitting @{old}",
+    ])
+    r = vault.daily_rollup()
+    assert any(e["text"] == "been sitting" for e in r["stale"])
+
+
+def test_daily_rollup_invalid_date(vault: Vault):
+    r = vault.daily_rollup(date_="not-a-date")
+    assert "error" in r
+
+
+def test_daily_rollup_project_attribution(vault: Vault):
+    _seed_todos(vault, "alpha", ["- [ ] alpha task"])
+    _seed_todos(vault, "beta", ["- [ ] beta task"])
+    r = vault.daily_rollup()
+    projects = {e["project"] for e in r["unscheduled"]}
+    assert projects == {"alpha", "beta"}
+
+
+def test_render_daily_creates_file_with_today_section(vault: Vault):
+    today = date.today().isoformat()
+    _seed_todos(vault, "proj-r", [
+        f"- [ ] task scheduled today @{today}",
+    ])
+    result = vault.render_daily()
+    assert result["rendered"] is True
+    daily_path = vault.root / "work" / "daily" / f"{today}.md"
+    assert daily_path.exists()
+    content = daily_path.read_text()
+    assert "## Today" in content
+    assert "task scheduled today" in content
+    assert "Scheduled today" in content
+
+
+def test_render_daily_preserves_other_sections(vault: Vault):
+    today = date.today().isoformat()
+    _seed_todos(vault, "proj-p", [
+        f"- [ ] scheduled @{today}",
+    ])
+    # Pre-seed the daily file with a ## Log section
+    daily_dir = vault.root / "work" / "daily"
+    daily_dir.mkdir(parents=True, exist_ok=True)
+    (daily_dir / f"{today}.md").write_text(
+        f"# {today}\n\n"
+        "## Log\n\n"
+        "- abc1234: previous commit\n\n"
+        "## Reflection\n\n"
+        "Was a good day.\n",
+        encoding="utf-8",
+    )
+    vault.render_daily()
+    content = (daily_dir / f"{today}.md").read_text()
+    # Today section added
+    assert "## Today" in content
+    assert "scheduled" in content
+    # Other sections preserved
+    assert "## Log" in content
+    assert "previous commit" in content
+    assert "## Reflection" in content
+    assert "Was a good day." in content
+
+
+def test_render_daily_regenerates_existing_today_section(vault: Vault):
+    today = date.today().isoformat()
+    _seed_todos(vault, "proj-q", [
+        f"- [ ] new task @{today}",
+    ])
+    daily_dir = vault.root / "work" / "daily"
+    daily_dir.mkdir(parents=True, exist_ok=True)
+    (daily_dir / f"{today}.md").write_text(
+        f"# {today}\n\n"
+        "## Today\n\n"
+        "- [ ] stale stuff that shouldn't persist\n\n"
+        "## Log\n\n"
+        "- keep me\n",
+        encoding="utf-8",
+    )
+    vault.render_daily()
+    content = (daily_dir / f"{today}.md").read_text()
+    assert "stale stuff that shouldn't persist" not in content
+    assert "new task" in content
+    assert "## Log" in content
+    assert "keep me" in content
+
+
+def test_render_daily_empty_rollup_still_writes_section(vault: Vault):
+    today = date.today().isoformat()
+    # No todos.md files at all
+    result = vault.render_daily()
+    assert result["rendered"] is True
+    content = (vault.root / "work" / "daily" / f"{today}.md").read_text()
+    assert "## Today" in content
+    assert "No scheduled" in content or "No " in content
 
 
 # ── audit_threads ────────────────────────────────────────────────────
