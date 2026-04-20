@@ -43,6 +43,12 @@ After the user gives commitments:
 
    Keep it short — this is a day's intent, not a journal entry.
 
+   **Wikilink hygiene** (easy to get wrong):
+   - Projects live at `work/projects/{slug}/{slug}.md`. The folder and file share a name, so plain `[[slug|Display]]` can resolve to the folder instead of the landing page. **Always use the full-path form**: `[[slug/slug|Display]]`. Example: `[[guided-edge-wise-diffusion/guided-edge-wise-diffusion|Guided Edge-Wise Diffusion]]`.
+   - Threads: same pattern — `[[thread-slug/thread-slug|Thread Name]]`.
+   - Concepts/tools/people/resources/decisions: flat knowledge folders — `[[slug|Display]]` is correct.
+   - **Never wrap a wikilink in backticks.** `` `[[foo|bar]]` `` becomes a code span; Obsidian won't resolve it. Use backticks only for actual code/identifiers; use wikilinks plain.
+
 4. **Refresh the `## Today` section**: `wiki(action="render_daily")`. This regenerates the scheduled/overdue/stale checklist from the updated todos.md files. Don't hand-write `## Today`.
 
 5. **Report**: reply with a one-liner linking today's daily file via wikilink, and optionally the count of items you added to project todos.md files.
@@ -76,6 +82,8 @@ Don't offer more than one triage pass per session. If the user wants to triage l
 
 ## Anti-patterns
 
+- **Backticks on wikilinks.** `` `[[slug|Display]]` `` is a code span, not a clickable link. Never wrap wikilinks in backticks.
+- **Plain `[[project-slug]]` for projects.** Projects live in same-name folders; the bare slug can resolve to the folder. Always use `[[slug/slug|Display]]` for projects and threads.
 - **Opening with context.** The first turn is *always* the thought-question. You haven't earned the right to brief the user before hearing what's on their mind.
 - **Over-long narrative.** The `## Plan` section is 1–3 sentences. Not a paragraph. Not a list disguised as prose.
 - **Suggesting extra work.** You're recording commitments, not proposing them. If the user's commitments don't include the overdue item, don't nag.
