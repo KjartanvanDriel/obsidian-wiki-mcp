@@ -900,8 +900,6 @@ class Vault:
     _TODO_LINE_RE = re.compile(r"^(\s*)- \[([ xX])\]\s+(.*)$")
     _TODO_DATE_RE = re.compile(r"(?<!\S)@(\d{4}-\d{2}-\d{2})\b")
     _TODO_PRIO_RE = re.compile(r"(?<!\S)!(high|med|low)\b")
-    _BLAME_DATE_RE = re.compile(r"\S+\s+(?:\S+\s+)?\(.+?(\d{4}-\d{2}-\d{2})")
-
     def _parse_todo_line(self, line: str) -> dict | None:
         """Parse one markdown checkbox line into a structured todo.
 
@@ -938,38 +936,41 @@ class Vault:
             return []
         return sorted(work_dir.rglob("todos.md"))
 
-    def _line_ages(self, path: Path) -> dict[int, int]:
-        """Return {1-based-lineno: age_in_days} via `git blame --date=short`.
+    def _project_last_activity(self) -> dict[str, date]:
+        """Return {project_slug: last_activity_date} via `git log` on each
+        project folder. A project is considered "recently active" if any
+        file under `work/projects/{slug}/` was committed in the window.
 
-        On any failure (not a git repo, file not tracked, no git installed)
-        return an empty dict; callers fall back gracefully.
+        On any git failure, the project isn't in the returned dict — callers
+        treat that as "no recent activity."
         """
-        try:
-            result = subprocess.run(
-                ["git", "-C", str(self.root), "blame", "--date=short", str(path)],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return {}
-        if result.returncode != 0:
-            return {}
-
-        today = date.today()
-        ages: dict[int, int] = {}
-        for lineno, blame_line in enumerate(result.stdout.splitlines(), start=1):
-            m = self._BLAME_DATE_RE.search(blame_line)
-            if not m:
+        result: dict[str, date] = {}
+        projects_root = self.root / "work" / "projects"
+        if not projects_root.exists():
+            return result
+        for p in sorted(projects_root.iterdir()):
+            if not p.is_dir():
                 continue
             try:
-                y, mo, d = map(int, m.group(1).split("-"))
-                line_date = date(y, mo, d)
+                rel = str(p.relative_to(self.root))
+                cmd_result = subprocess.run(
+                    ["git", "-C", str(self.root), "log", "-1",
+                     "--format=%cd", "--date=short", "--", rel],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError):
+                continue
+            if cmd_result.returncode != 0 or not cmd_result.stdout.strip():
+                continue
+            try:
+                y, mo, d = map(int, cmd_result.stdout.strip().split("-"))
+                result[p.name] = date(y, mo, d)
             except ValueError:
                 continue
-            ages[lineno] = (today - line_date).days
-        return ages
+        return result
 
     def _project_name_from_path(self, path: Path) -> str:
         """Extract project name from a todos.md path. Returns the project
@@ -986,7 +987,7 @@ class Vault:
     def daily_rollup(
         self,
         date_: str | None = None,
-        stale_threshold_days: int = 7,
+        stale_threshold_days: int = 14,
     ) -> dict:
         """Scan every todos.md under `work/`, bucket open items by schedule.
 
@@ -994,13 +995,11 @@ class Vault:
           scheduled_today — open with @date == today
           overdue         — open with @date < today
           upcoming_7d     — open with today < @date <= today+7
-          stale           — open, line is older than `stale_threshold_days` OR
-                            `@date` is older than that threshold
+          stale           — open, owned by a project with no git activity in
+                            the last `stale_threshold_days` days. Intended to
+                            flag *abandoned* work, not long-running tasks.
           unscheduled     — open with no @date
           done_today      — closed with @date == today (small convenience)
-
-        A single open item may appear in both `overdue` and `stale` if both
-        apply; callers decide how to present them.
         """
         if date_:
             try:
@@ -1020,9 +1019,22 @@ class Vault:
             "done_today": [],
         }
 
+        # Project-level activity signal for the stale bucket. If git info
+        # isn't available for a project, it's considered inactive (conservative).
+        project_activity = self._project_last_activity()
+
+        def _is_project_inactive(project: str) -> bool:
+            if not project:
+                # Global work/todos.md has no project attribution; never stale.
+                return False
+            last = project_activity.get(project)
+            if last is None:
+                return True
+            return (today - last).days > stale_threshold_days
+
         for path in self._todos_files():
             project = self._project_name_from_path(path)
-            ages = self._line_ages(path)
+            project_is_inactive = _is_project_inactive(project)
             try:
                 lines = path.read_text(encoding="utf-8").splitlines()
             except OSError:
@@ -1046,7 +1058,7 @@ class Vault:
                         buckets["done_today"].append(entry)
                     continue
 
-                # Open items
+                # Open items — schedule bucket
                 scheduled_date: date | None = None
                 if todo["scheduled"]:
                     try:
@@ -1067,14 +1079,9 @@ class Vault:
                         buckets["upcoming_7d"].append(entry)
                     # > 7 days out: not shown in any bucket (deliberate)
 
-                # Stale (applies to open items only): scheduled date older
-                # than threshold, or line itself older than threshold with no
-                # forward-looking date.
-                age_days = ages.get(lineno)
-                if scheduled_date is not None:
-                    if (today - scheduled_date).days > stale_threshold_days:
-                        buckets["stale"].append(entry)
-                elif age_days is not None and age_days > stale_threshold_days:
+                # Stale = project has no recent git activity. Overdue items
+                # with a scheduled date are their own bucket; don't duplicate.
+                if project_is_inactive:
                     buckets["stale"].append(entry)
 
         summary = {
@@ -1089,6 +1096,7 @@ class Vault:
             "stale_count": len(buckets["stale"]),
             "done_today_count": len(buckets["done_today"]),
             "stale_threshold_days": stale_threshold_days,
+            "stale_definition": "project has no git activity in the last N days",
         }
         return {"date": today.isoformat(), "summary": summary, **buckets}
 
@@ -1109,6 +1117,7 @@ class Vault:
         daily_dir.mkdir(parents=True, exist_ok=True)
         daily_path = daily_dir / f"{today_iso}.md"
 
+        STALE_RENDER_CAP = 10
         section_lines = [f"## Today", ""]
         if not any(rollup[k] for k in ("scheduled_today", "overdue", "stale")):
             section_lines.append("_No scheduled, overdue, or stale items._")
@@ -1128,8 +1137,18 @@ class Vault:
                 section_lines.extend(_render(e) for e in rollup["scheduled_today"])
                 section_lines.append("")
             if rollup["stale"]:
-                section_lines.append("**Stale (>7d, consider drop/defer):**")
-                section_lines.extend(_render(e) for e in rollup["stale"])
+                stale_items = rollup["stale"]
+                total = len(stale_items)
+                threshold = rollup["summary"].get("stale_threshold_days", 14)
+                section_lines.append(
+                    f"**Stale (projects inactive >{threshold}d, consider triage via `/plan`):**"
+                )
+                shown = stale_items[:STALE_RENDER_CAP]
+                section_lines.extend(_render(e) for e in shown)
+                if total > STALE_RENDER_CAP:
+                    section_lines.append(
+                        f"- _… and {total - STALE_RENDER_CAP} more — run `/plan` to triage._"
+                    )
                 section_lines.append("")
         section_text = "\n".join(section_lines).rstrip() + "\n"
 

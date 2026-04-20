@@ -1218,13 +1218,44 @@ def test_daily_rollup_buckets(vault: Vault):
     assert all(e["text"] != "far future" for e in r["upcoming_7d"])
 
 
-def test_daily_rollup_stale_from_scheduled_date(vault: Vault):
-    old = (date.today() - timedelta(days=20)).isoformat()
-    _seed_todos(vault, "proj-b", [
-        f"- [ ] been sitting @{old}",
+def test_daily_rollup_stale_requires_inactive_project(vault: Vault, monkeypatch):
+    """Stale = project with no git activity in N days. A fresh project with
+    no git history is treated as inactive, so its todos appear stale."""
+    _seed_todos(vault, "inactive-proj", [
+        "- [ ] work on something",
     ])
+    # In this temp vault there's no git repo, so _project_last_activity
+    # returns {} → the project is inactive → todo is stale.
     r = vault.daily_rollup()
-    assert any(e["text"] == "been sitting" for e in r["stale"])
+    assert any(e["text"] == "work on something" for e in r["stale"])
+
+
+def test_daily_rollup_stale_respects_recent_activity(vault: Vault, monkeypatch):
+    """A project with recent activity should NOT have its todos flagged as stale."""
+    _seed_todos(vault, "active-proj", [
+        "- [ ] recent work item",
+    ])
+    # Stub _project_last_activity to return today for this project.
+    monkeypatch.setattr(
+        vault, "_project_last_activity", lambda: {"active-proj": date.today()}
+    )
+    r = vault.daily_rollup()
+    assert not any(e["text"] == "recent work item" for e in r["stale"])
+
+
+def test_daily_rollup_stale_threshold_configurable(vault: Vault, monkeypatch):
+    _seed_todos(vault, "edge-proj", ["- [ ] edge item"])
+    # Last activity 10 days ago
+    ten_days_ago = date.today() - timedelta(days=10)
+    monkeypatch.setattr(
+        vault, "_project_last_activity", lambda: {"edge-proj": ten_days_ago}
+    )
+    # With threshold=14 (default), not stale
+    r = vault.daily_rollup()
+    assert not any(e["text"] == "edge item" for e in r["stale"])
+    # With threshold=7, stale
+    r2 = vault.daily_rollup(stale_threshold_days=7)
+    assert any(e["text"] == "edge item" for e in r2["stale"])
 
 
 def test_daily_rollup_invalid_date(vault: Vault):
@@ -1304,6 +1335,23 @@ def test_render_daily_regenerates_existing_today_section(vault: Vault):
     assert "new task" in content
     assert "## Log" in content
     assert "keep me" in content
+
+
+def test_render_daily_caps_stale_items_in_output(vault: Vault, monkeypatch):
+    """The rendered `## Today` should cap stale items at 10, with a trailing
+    '... and N more' line when there are more."""
+    # Create 15 stale todos in an inactive project
+    lines = [f"- [ ] stale item {i}" for i in range(15)]
+    _seed_todos(vault, "inactive", lines)
+    # No git → inactive → all stale
+    vault.render_daily()
+    today = date.today().isoformat()
+    content = (vault.root / "work" / "daily" / f"{today}.md").read_text()
+    # 10 items rendered, plus a "5 more" note
+    stale_lines = [l for l in content.splitlines() if "stale item" in l]
+    assert len(stale_lines) == 10
+    assert "5 more" in content
+    assert "/plan" in content
 
 
 def test_render_daily_empty_rollup_still_writes_section(vault: Vault):
