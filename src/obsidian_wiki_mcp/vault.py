@@ -463,6 +463,37 @@ class Vault:
             return alias_index[link_lower]
         return None
 
+    def _thread_link_set(self) -> set[str]:
+        """Build a set of valid wikilink forms pointing into `threads/` folders.
+
+        Threads are excluded from MCP indexing (see `_all_md_files`), but wiki
+        pages legitimately link to thread landing pages and session notes via
+        `[[thread-slug/file-stem]]`. Without this helper the broken-link
+        checker would flag every such link as broken.
+
+        We record both `{thread-slug}/{file-stem}` (the common form) and
+        bare `{file-stem}` (fallback) in lowercase.
+        """
+        links: set[str] = set()
+        for thread_dir in self.root.rglob("threads"):
+            if not thread_dir.is_dir():
+                continue
+            for md in thread_dir.rglob("*.md"):
+                # Only count files directly under a specific thread folder
+                # (threads/{thread-slug}/{file}.md), not under threads/ itself.
+                try:
+                    rel = md.relative_to(thread_dir)
+                except ValueError:
+                    continue
+                parts = rel.parts
+                if len(parts) != 2:
+                    continue
+                thread_slug, fname = parts[0], parts[1]
+                stem = Path(fname).stem
+                links.add(f"{thread_slug}/{stem}".lower())
+                links.add(stem.lower())
+        return links
+
     def health(self, checks: list[str] | None = None) -> dict:
         """Run vault health checks."""
         all_checks = {"orphans", "stubs", "broken_links", "validation", "duplicates"}
@@ -484,6 +515,21 @@ class Vault:
             # Also index by just the filename stem for simple [[slug]] links
             slug_index[p.path.stem.lower()] = p.title
 
+        # Thread landing pages and session notes aren't in the MCP index but
+        # are legitimate link targets.
+        thread_links = self._thread_link_set()
+
+        def _is_valid_link(link: str) -> bool:
+            """True if `link` resolves to a real page or a known thread file.
+            Intra-page anchor links (`#section`) are not checked."""
+            if link.startswith("#"):
+                return True
+            if self._resolve_link(link, slug_index, title_index, alias_index):
+                return True
+            if link.lower() in thread_links:
+                return True
+            return False
+
         all_outlinks: dict[str, list[str]] = {}
         all_inlinks: defaultdict[str, list[str]] = defaultdict(list)
 
@@ -491,6 +537,8 @@ class Vault:
             outlinks = p.outlinks()
             all_outlinks[p.title] = outlinks
             for link in outlinks:
+                if link.startswith("#"):
+                    continue  # intra-page anchor, not a page reference
                 resolved = self._resolve_link(link, slug_index, title_index, alias_index)
                 if resolved:
                     all_inlinks[resolved.lower()].append(p.title)
@@ -512,10 +560,12 @@ class Vault:
                     report.stubs.append(p.title)
 
         # Broken links: [[links]] pointing to nonexistent pages
+        # Thread-targeted links (e.g. [[thread-slug/thread-slug]]) resolve
+        # against the filesystem thread-link set; anchor-only links are skipped.
         if "broken_links" in run_checks:
             for p in pages:
                 for link in p.outlinks():
-                    if not self._resolve_link(link, slug_index, title_index, alias_index):
+                    if not _is_valid_link(link):
                         report.broken_links.append({"from": p.title, "to": link})
 
         # Validation errors

@@ -1148,6 +1148,64 @@ def test_ingest_authors_is_idempotent_on_authors_line(vault: Vault, tmp_path: Pa
     assert "[[john-smith|John Smith]]" in authors_lines[0]
 
 
+# ── broken-link false positives ──────────────────────────────────────
+
+
+def test_broken_links_skip_anchor_only(vault: Vault):
+    """`[[#section]]` is an intra-page anchor, not a page reference. It
+    must not appear in broken_links."""
+    vault.create_page(
+        page_type="concept",
+        title="Page With Anchor",
+        metadata={"status": "draft", "tags": ["x"]},
+        body="See [[#Overview]] below.\n\n## Overview\n\nStuff.\n",
+    )
+    report = vault.health(checks=["broken_links"])
+    targets = [bl["to"] for bl in report["broken_links"]]
+    assert "#Overview" not in targets
+
+
+def test_broken_links_resolve_thread_landing(vault: Vault, tmp_path: Path):
+    """A wikilink to a thread landing page like `[[sm-to-local-rules/sm-to-local-rules]]`
+    must resolve even though threads/ is excluded from MCP indexing."""
+    # Create a project + thread scaffold directly on disk (threads aren't
+    # created via create_page).
+    project_dir = tmp_path / "work" / "projects" / "demo-project"
+    thread_dir = project_dir / "threads" / "foo-thread"
+    thread_dir.mkdir(parents=True)
+    (thread_dir / "foo-thread.md").write_text("# foo-thread\n", encoding="utf-8")
+    (thread_dir / "2026-04-20-session.md").write_text("# session\n", encoding="utf-8")
+
+    # Now create a concept that links to the thread
+    vault.create_page(
+        page_type="concept",
+        title="Linker",
+        metadata={"status": "draft", "tags": ["x"]},
+        body=(
+            "See [[foo-thread/foo-thread|Foo Thread]] and "
+            "[[foo-thread/2026-04-20-session|session]].\n"
+        ),
+    )
+    report = vault.health(checks=["broken_links"])
+    targets = [bl["to"] for bl in report["broken_links"]]
+    assert "foo-thread/foo-thread" not in targets
+    assert "foo-thread/2026-04-20-session" not in targets
+
+
+def test_broken_links_still_flag_missing_thread(vault: Vault, tmp_path: Path):
+    """A link to a thread that doesn't exist must still be flagged."""
+    # No thread dir created — link should fail to resolve.
+    vault.create_page(
+        page_type="concept",
+        title="Broken Linker",
+        metadata={"status": "draft", "tags": ["x"]},
+        body="See [[ghost-thread/ghost-thread|Ghost]].\n",
+    )
+    report = vault.health(checks=["broken_links"])
+    targets = [bl["to"] for bl in report["broken_links"]]
+    assert "ghost-thread/ghost-thread" in targets
+
+
 # ── wikilink escapes in markdown tables ──────────────────────────────
 
 
