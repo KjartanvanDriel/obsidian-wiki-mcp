@@ -20,6 +20,17 @@ def strip_code(text: str) -> str:
     return text
 
 
+def normalize_wikilink_escapes(text: str) -> str:
+    """Normalize markdown-table escapes inside wikilinks.
+
+    Inside markdown tables, `|` must be escaped as `\\|` so it isn't
+    treated as a column separator. Obsidian strips the backslash when
+    parsing `[[slug\\|Display]]` — we do the same here so the slug
+    isn't captured as `slug\\`.
+    """
+    return text.replace("\\|", "|")
+
+
 @dataclass
 class WikiPage:
     """A parsed wiki page."""
@@ -55,8 +66,10 @@ class WikiPage:
     def outlinks(self) -> list[str]:
         """Extract all [[wikilinks]] from body and metadata."""
         links = set()
-        # Links in body (excluding code blocks and inline code)
-        body_text = strip_code(self.body)
+        # Links in body (excluding code blocks and inline code; normalizing
+        # table-escaped pipes `\|` → `|` so slugs aren't captured with a
+        # trailing backslash).
+        body_text = normalize_wikilink_escapes(strip_code(self.body))
         links.update(re.findall(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", body_text))
         # Links in metadata values
         _extract_links_from_value(self.metadata, links)
@@ -66,7 +79,7 @@ class WikiPage:
 def _extract_links_from_value(value: Any, links: set[str]) -> None:
     """Recursively extract [[wikilinks]] from metadata values."""
     if isinstance(value, str):
-        links.update(re.findall(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", value))
+        links.update(re.findall(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", normalize_wikilink_escapes(value)))
     elif isinstance(value, list):
         for item in value:
             _extract_links_from_value(item, links)

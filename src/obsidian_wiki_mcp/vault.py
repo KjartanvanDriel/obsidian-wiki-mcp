@@ -13,7 +13,7 @@ from typing import Any
 import frontmatter
 
 from . import bibtex as bibtex_lib
-from .models import HealthReport, ValidationError, WikiPage, strip_code
+from .models import HealthReport, ValidationError, WikiPage, normalize_wikilink_escapes, strip_code
 from .schemas import SchemaRegistry
 
 
@@ -388,7 +388,7 @@ class Vault:
 
         for path in self._all_md_files():
             try:
-                content = strip_code(path.read_text(encoding="utf-8"))
+                content = normalize_wikilink_escapes(strip_code(path.read_text(encoding="utf-8")))
             except Exception:
                 continue
             if any(p.search(content) for p in patterns):

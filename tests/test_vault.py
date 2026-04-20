@@ -1148,6 +1148,81 @@ def test_ingest_authors_is_idempotent_on_authors_line(vault: Vault, tmp_path: Pa
     assert "[[john-smith|John Smith]]" in authors_lines[0]
 
 
+# ── wikilink escapes in markdown tables ──────────────────────────────
+
+
+def test_outlinks_handles_escaped_pipe_in_table(vault: Vault):
+    """Inside a markdown table, `|` is escaped as `\\|`. The outlink
+    extractor must treat `[[slug\\|Display]]` the same as `[[slug|Display]]`."""
+    vault.create_page(
+        page_type="concept",
+        title="Target",
+        metadata={"status": "draft", "tags": ["x"]},
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Table Page",
+        metadata={"status": "draft", "tags": ["x"]},
+        body=(
+            "A table:\n\n"
+            "| Col | Link |\n"
+            "|---|---|\n"
+            "| row | [[target\\|Target]] |\n"
+        ),
+    )
+    page = vault._parse_page(vault._title_to_path("Table Page"))
+    outlinks = page.outlinks()
+    # The slug should be captured without a trailing backslash
+    assert "target" in outlinks
+    assert "target\\" not in outlinks
+
+
+def test_table_escaped_wikilink_not_flagged_as_broken(vault: Vault):
+    """health(broken_links) must not flag `[[slug\\|Display]]` as broken."""
+    vault.create_page(
+        page_type="concept",
+        title="Real Page",
+        metadata={"status": "draft", "tags": ["x"]},
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Linker",
+        metadata={"status": "draft", "tags": ["x"]},
+        body="| A | B |\n|---|---|\n| see | [[real-page\\|Real Page]] |\n",
+    )
+    report = vault.health(checks=["broken_links"])
+    broken_targets = [bl["to"] for bl in report["broken_links"]]
+    assert "real-page\\" not in broken_targets
+    assert "real-page" not in broken_targets  # It resolved — not broken
+
+
+def test_backlinks_find_table_escaped_references(vault: Vault):
+    """_find_backlinks must recognize a page that links via `\\|` escape."""
+    vault.create_page(
+        page_type="concept",
+        title="Target",
+        metadata={"status": "draft", "tags": ["x"]},
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Referrer",
+        metadata={"status": "draft", "tags": ["x"]},
+        body="| A | B |\n|---|---|\n| row | [[target\\|Target]] |\n",
+    )
+    backlinks = vault._find_backlinks("Target")
+    assert "Referrer" in backlinks
+
+
+def test_normalize_wikilink_escapes_is_surgical():
+    """normalize_wikilink_escapes should only replace `\\|` \u2014 not other backslashes."""
+    from obsidian_wiki_mcp.models import normalize_wikilink_escapes
+    assert normalize_wikilink_escapes("[[foo\\|Foo]]") == "[[foo|Foo]]"
+    # A backslash that isn't before a pipe is left alone.
+    assert normalize_wikilink_escapes("path\\to\\file") == "path\\to\\file"
+    # Bare text unaffected.
+    assert normalize_wikilink_escapes("no pipes here") == "no pipes here"
+
+
 # ── meeting schema ───────────────────────────────────────────────────
 
 
