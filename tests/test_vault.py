@@ -1544,6 +1544,26 @@ def test_audit_threads_no_projects(vault: Vault):
 # ── broken-link false positives ──────────────────────────────────────
 
 
+def test_health_flags_backtick_wrapped_wikilinks(vault: Vault):
+    """`[[foo|bar]]` is a code span that won't resolve in Obsidian.
+    The health report should flag these so they can be fixed."""
+    vault.create_page(
+        page_type="concept",
+        title="Target",
+        metadata={"status": "draft", "tags": ["x"]},
+    )
+    vault.create_page(
+        page_type="concept",
+        title="Offender",
+        metadata={"status": "draft", "tags": ["x"]},
+        body="Plain link: [[target|Target]]\n\nBroken: `[[target|Target]]`\n",
+    )
+    report = vault.health(checks=["backtick_wikilinks"])
+    backtick_hits = [bl for bl in report["broken_links"] if bl.get("kind") == "backtick_wrapped"]
+    assert len(backtick_hits) >= 1
+    assert any("Offender" in bl["from"] for bl in backtick_hits)
+
+
 def test_broken_links_skip_anchor_only(vault: Vault):
     """`[[#section]]` is an intra-page anchor, not a page reference. It
     must not appear in broken_links."""

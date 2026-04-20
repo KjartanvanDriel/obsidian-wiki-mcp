@@ -494,9 +494,11 @@ class Vault:
                 links.add(stem.lower())
         return links
 
+    _BACKTICK_WIKILINK_RE = re.compile(r"`\[\[[^`\]]+?\]\]`")
+
     def health(self, checks: list[str] | None = None) -> dict:
         """Run vault health checks."""
-        all_checks = {"orphans", "stubs", "broken_links", "validation", "duplicates"}
+        all_checks = {"orphans", "stubs", "broken_links", "validation", "duplicates", "backtick_wikilinks"}
         run_checks = set(checks) if checks else all_checks
 
         pages = self._all_pages()
@@ -567,6 +569,17 @@ class Vault:
                 for link in p.outlinks():
                     if not _is_valid_link(link):
                         report.broken_links.append({"from": p.title, "to": link})
+
+        # Backtick-wrapped wikilinks: `[[foo|bar]]` is a code span and won't
+        # resolve. Report each match as a broken-link-adjacent finding.
+        if "backtick_wikilinks" in run_checks:
+            for p in pages:
+                for match in self._BACKTICK_WIKILINK_RE.finditer(p.body):
+                    report.broken_links.append({
+                        "from": p.title,
+                        "to": match.group(0),
+                        "kind": "backtick_wrapped",
+                    })
 
         # Validation errors
         if "validation" in run_checks:

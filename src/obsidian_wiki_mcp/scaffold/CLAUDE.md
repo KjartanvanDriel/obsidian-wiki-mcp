@@ -32,7 +32,7 @@ references.bib        → BibTeX citations
 - **New pages are `status: draft`.** Only the human promotes to `published`.
 - **Never delete pages without confirmation.**
 - **Never commit without approval.** Always ask the user before committing. Commits auto-append to the daily log.
-- **IMPORTANT: Use `[[slug|Display Name]]` for all wikilinks.** Obsidian resolves by filename, not title. `[[vector-similarity-search|Vector Similarity Search]]` not `[[Vector Similarity Search]]`. For threads (where the folder and file share a name), use the full path: `[[thread-slug/thread-slug|Thread Name]]` to avoid resolving to the folder.
+- **IMPORTANT: Use `[[slug|Display Name]]` for all wikilinks.** Obsidian resolves by filename, not title. `[[vector-similarity-search|Vector Similarity Search]]` not `[[Vector Similarity Search]]`. **Projects and threads share their folder name with their file name**, so the bare slug can resolve to the folder; always use the full-path form: `[[slug/slug|Display Name]]` — e.g. `[[wiki-infrastructure/wiki-infrastructure|Wiki Infrastructure]]`. **Never wrap a wikilink in backticks** — `` `[[foo|bar]]` `` is a code span and won't resolve.
 - **Use proper markdown and LaTeX.** All math must use LaTeX notation (`$inline$` and `$$display$$`). Use standard markdown for everything else — no HTML.
 - **IMPORTANT: Batch creation requires approval.** When creating multiple pages (decisions, concepts, stubs), ALWAYS present a checklist of proposed pages first and wait for the user to confirm before creating any. Only skip this if the user explicitly sets approval to autonomous. One page at a time is fine; two or more pages must be presented as a list first.
 
