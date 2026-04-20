@@ -34,7 +34,7 @@ Use the `wiki` tool with an `action` parameter. Available actions:
   project — Project overview with children and artifacts
   links   — Backlinks and/or outlinks for a page
   provenance — Get or set generation sources for a page
-  commit  — Git commit all current changes
+  commit  — Git commit. Prefer passing `files=[...]` to target your change; omitting it stages everything (sweeps unrelated user work)
   style   — Read or update the wiki style guide. Read this before writing content.
   move_file — Move/rename a file to attachments with optional BibTeX-key naming
   create_thread — Create a research thread (folder, landing page, index entry)
@@ -112,7 +112,7 @@ def wiki(
       project    — Project overview. Requires: title.
       links      — Get links. Requires: title. Optional: direction (in/out/both).
       provenance — Get/set sources. Requires: title. Optional: mode (get/set), sources.
-      commit     — Git commit. Requires: message. Optional: files (list of paths to stage; omit for all).
+      commit     — Git commit. Requires: message. Optional: files (list of paths to stage). STRONGLY PREFER passing files explicitly so you don't sweep up unrelated in-progress edits. Omit files only if the user says "commit everything" or you've verified the tree is clean except for your change.
       style      — Read or update the wiki style guide. mode='read' (default): read full or section. mode='update': replace full (content) or patch (section + section_content). mode='init': create default.
       move_file  — Move/rename a file into attachments. Requires: source (path relative to vault root). Optional: destination, bibtex_key.
       create_thread — Create a research thread. Requires: project, title. Optional: body (description). Creates folder, landing page, and index entry.
