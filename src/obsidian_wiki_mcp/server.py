@@ -325,6 +325,7 @@ _SYNC_PATHS = [
     ".claude/commands/wiki-diary.md",
     ".claude/commands/meeting.md",
     ".claude/commands/day.md",
+    ".claude/commands/plan.md",
     "CLAUDE.md",
 ]
 
