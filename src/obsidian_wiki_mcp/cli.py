@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -73,6 +74,27 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
             "Thumbs.db\n"
         )
 
+    # Write .mcp.json so the wiki MCP server is wired up automatically.
+    # Skip if the file already exists — never clobber a user's customized config.
+    mcp_config = vault / ".mcp.json"
+    wrote_mcp_config = False
+    if not mcp_config.exists():
+        mcp_config.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "obsidian-wiki": {
+                            "command": "obsidian-wiki-mcp",
+                            "env": {"VAULT_PATH": str(vault)},
+                        }
+                    }
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        wrote_mcp_config = True
+
     # Initialize git
     if not skip_git and not (vault / ".git").exists():
         try:
@@ -121,19 +143,10 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
     print()
     print("   Next steps:")
     print(f"   1. Open {vault} in Obsidian")
-    print(f"   2. Configure the MCP server:")
-    print()
-    print(f'      Add to .mcp.json (in the vault root):')
-    print()
-    print(f'      {{')
-    print(f'        "mcpServers": {{')
-    print(f'          "obsidian-wiki": {{')
-    print(f'            "command": "obsidian-wiki-mcp",')
-    print(f'            "env": {{ "VAULT_PATH": "{vault}" }}')
-    print(f'          }}')
-    print(f'        }}')
-    print(f'      }}')
-    print()
+    if wrote_mcp_config:
+        print(f"   2. .mcp.json is wired up — obsidian-wiki server points at this vault.")
+    else:
+        print(f"   2. .mcp.json already existed — left it untouched.")
     print(f"   3. Run `claude` in the vault directory")
     print(f"   4. Try: /wiki create a concept page about something you're working on")
 
