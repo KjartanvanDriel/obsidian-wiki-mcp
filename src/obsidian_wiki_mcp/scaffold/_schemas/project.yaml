@@ -13,6 +13,9 @@ fields:
     default: active
   goal:
     type: string
+  description:
+    type: string
+    default: ""
   parent_project:
     type: wikilink
     default: ""

@@ -29,9 +29,6 @@ fields:
     default: []
   year:
     type: integer
-  venue:
-    type: string
-    default: ""
   tags:
     type: list
     item_type: string
@@ -40,10 +37,24 @@ fields:
     type: list
     item_type: string
     default: []
+  venue:
+    type: string
+    default: ""
+  supplementary:
+    type: string
+    default: ""
   related_concepts:
     type: list
     item_type: wikilink
     default: []
+  parent_book:
+    type: wikilink
+    default: ""
+  chapter_number:
+    type: integer
+  chapter_title:
+    type: string
+    default: ""
   sources_used:
     type: list
     item_type: source

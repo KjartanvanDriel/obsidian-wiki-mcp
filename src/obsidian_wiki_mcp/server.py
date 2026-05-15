@@ -326,12 +326,14 @@ _SYNC_PATHS = [
     ".claude/commands/meeting.md",
     ".claude/commands/day.md",
     ".claude/commands/plan.md",
+    ".claude/commands/wiki-ingest-book.md",
     "CLAUDE.md",
 ]
 
 # Files synced only if unchanged from a previous scaffold version
 _SYNC_IF_UNCHANGED_PATHS = [
     "Landing.md",
+    "_wiki/style-guide.md",
     "_schemas/concept.yaml",
     "_schemas/decision.yaml",
     "_schemas/deliverable.yaml",
@@ -430,7 +432,7 @@ def main():
     # init subcommand
     init_parser = subparsers.add_parser("init", help="Initialize a new wiki vault")
     init_parser.add_argument("path", type=Path, help="Path to the vault directory")
-    init_parser.add_argument("--force", action="store_true", help="Overwrite existing files")
+    init_parser.add_argument("--no-git", action="store_true", help="Skip git initialization")
 
     # serve is the default (no subcommand)
     serve_parser = subparsers.add_parser("serve", help="Start the MCP server")
@@ -439,8 +441,8 @@ def main():
     args = parser.parse_args()
 
     if args.command == "init":
-        from .init import init_vault
-        init_vault(args.path, force=args.force)
+        from .cli import init_vault
+        init_vault(str(args.path), skip_git=args.no_git)
         return
 
     # Default: serve

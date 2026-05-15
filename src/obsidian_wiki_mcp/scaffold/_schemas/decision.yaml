@@ -21,14 +21,14 @@ fields:
     default: []
   rationale:
     type: string
-  status:
-    type: enum
-    values: [proposed, accepted, superseded]
-    default: accepted
   tags:
     type: list
     item_type: string
     default: []
+  status:
+    type: enum
+    values: [proposed, accepted, superseded]
+    default: proposed
   sources_used:
     type: list
     item_type: source

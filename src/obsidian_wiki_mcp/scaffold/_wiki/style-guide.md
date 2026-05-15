@@ -13,6 +13,7 @@
 - **Concise.** Every sentence should earn its place. If a paragraph can be a sentence, make it a sentence. If a sentence can be cut, cut it.
 - **Honest about uncertainty.** Say "likely," "appears to," "as of 2026" when appropriate. Never fake confidence. If something is a guess or inference, say so.
 - **Present tense by default.** "FAISS uses product quantization" not "FAISS used product quantization" — unless it's genuinely historical.
+- **Matter-of-fact.** State things plainly. Avoid rhetorical constructions that dramatize or argue — e.g. "This is not X — it is Y," "crucially," "the key insight is." If something is important, the content makes that clear; the sentence structure shouldn't be doing persuasion work. We are taking notes for ourselves, not convincing a reader.
 
 ### What we're NOT
 
@@ -20,8 +21,7 @@
 - Not a tutorial. We link to tutorials; we don't reproduce them.
 - Not marketing. No superlatives ("the best," "incredibly powerful," "revolutionary").
 - Not hedging everything. Don't pad with "it should be noted that" or "it is worth mentioning that." Just state it.
-
----
+- Not a manifesto. Don't use assertive or adversarial framing. No "make no mistake," "let us be clear," or similar constructions. The wiki is a working notebook, not a position paper.
 
 ## Page Structure
 
@@ -258,9 +258,9 @@ Structure:
 
 Never use `[[Display Name]]` alone — it won't resolve because files are named in kebab-case.
 
-For project pages (which use `_project.md`), link via the project folder name:
+Projects and threads share their folder name with their file name, so link via the full path:
 ```
-[[wiki-infrastructure/_project|Wiki Infrastructure]]
+[[wiki-infrastructure/wiki-infrastructure|Wiki Infrastructure]]
 ```
 
 ### When to create a link
@@ -280,7 +280,7 @@ If it only needs a sentence, just explain it inline and move on.
 
 ### Link display names
 
-Use the alias syntax when the display text should differ from the title:
+Use Obsidian's alias syntax when the page title is awkward in context:
 
 ```
 We use [[vector-similarity-search|vector search]] for retrieval.
@@ -295,44 +295,6 @@ We use [[vector-similarity-search|vector search]] for retrieval.
 - Use standard Markdown. No HTML.
 - One blank line between sections. No extra blank lines.
 - No trailing whitespace.
-
-### Math
-
-Use LaTeX notation for all math: `$inline$` for inline and `$$display$$` for display equations. Obsidian renders via MathJax.
-
-#### Notation conventions
-
-**Linear algebra:**
-- Vectors: bold lowercase — $\mathbf{x}, \mathbf{u}, \mathbf{s}$. Components with superscript index: $x^i$.
-- Matrices: bold capitals — $\mathbf{D}, \mathbf{W}$. Components: $D^{ij}$.
-- Basis vectors: $\mathbf{e}^i$. Projection: $\mathbf{D}^i = \mathbf{D}\mathbf{e}^i$.
-
-**Time:**
-- Discrete time indexed by $t$ (integers). Time-dependent vectors: $\mathbf{x}_t$.
-- Time-dependent functions: $\kappa(t)$. Timestep: $\delta t$. Timescale: $\tau$.
-- Decay kernel example: $\kappa(t) = \exp\left(-t\frac{\delta t}{\tau}\right)$.
-
-**Probability:**
-- Distributions: lowercase $p$. Write $p(\mathbf{x})$ for the distribution over $\mathbf{x}$.
-- Sampling: $\mathbf{x} \sim p(\mathbf{x})$.
-- Conditioning: $p(\mathbf{x} \mid \mathbf{c})$.
-- Parameterized distributions: subscript with parameters — $p_\theta(\mathbf{x})$.
-- Expectations: bracket notation — $\langle f(\mathbf{x}) \rangle_{p(\mathbf{x})}$.
-- Proportionality: use $\propto$ to drop normalization constants.
-
-**Bayesian inference:**
-- Prior: $p(\mathbf{c})$. Likelihood: $p(\mathbf{x} \mid \mathbf{c})$. Posterior: $p(\mathbf{c} \mid \mathbf{x})$.
-- Bayes' rule: $p(\mathbf{c} \mid \mathbf{x}) \propto p(\mathbf{x} \mid \mathbf{c})\, p(\mathbf{c})$.
-
-**Functionals:**
-- Square brackets for functional arguments: $F[f(\mathbf{x})]$ or $F[f]$.
-
-**Derivatives:**
-- Leibniz notation: $\frac{d}{dx}$ for full, $\frac{\partial}{\partial x}$ for partial.
-
-**General:**
-- Greek letters for parameters ($\theta, \Theta, \Psi$), Latin for variables ($x, z, s$).
-- Energy functions: $E(\mathbf{x})$. Inverse temperature: $\beta$.
 
 ### Lists
 

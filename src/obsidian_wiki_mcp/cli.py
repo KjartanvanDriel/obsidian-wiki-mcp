@@ -36,6 +36,7 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
         "knowledge/resources/attachments",
         "to_ingest",
         "work/daily",
+        "work/meetings",
         "work/projects",
     ]
     for d in dirs:
@@ -53,7 +54,14 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
             "# Obsidian internals\n"
             ".obsidian/workspace.json\n"
             ".obsidian/workspace-mobile.json\n"
+            ".obsidian/graph.json\n"
             ".trash/\n"
+            "\n"
+            "# Claude sessions\n"
+            ".claude/sessions/\n"
+            "\n"
+            "# Ingest queue\n"
+            "to_ingest/\n"
             "\n"
             "# Raw files\n"
             "*.pdf\n"
@@ -90,9 +98,13 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
     print("   │   ├── wiki.md                  ← /wiki command")
     print("   │   ├── wiki-audit.md            ← /wiki-audit command")
     print("   │   ├── wiki-ingest.md           ← /wiki-ingest command")
+    print("   │   ├── wiki-ingest-book.md      ← /wiki-ingest-book command")
     print("   │   ├── wiki-update-project.md   ← /wiki-update-project command")
+    print("   │   ├── wiki-diary.md            ← /wiki-diary command")
     print("   │   ├── research.md              ← /research command")
-    print("   │   └── wiki-diary.md            ← /wiki-diary command")
+    print("   │   ├── meeting.md               ← /meeting command")
+    print("   │   ├── day.md                   ← /day command")
+    print("   │   └── plan.md                  ← /plan command")
     print("   ├── _schemas/                    ← Page type definitions")
     print("   ├── _wiki/style-guide.md         ← Writing conventions")
     print("   ├── references.bib               ← BibTeX citations")
@@ -102,7 +114,10 @@ def init_vault(vault_path: str, skip_git: bool = False) -> None:
     print("   │   ├── people/")
     print("   │   └── resources/attachments/")
     print("   ├── to_ingest/                   ← Drop files here for ingestion")
-    print("   └── work/projects/")
+    print("   └── work/")
+    print("       ├── daily/")
+    print("       ├── meetings/")
+    print("       └── projects/")
     print()
     print("   Next steps:")
     print(f"   1. Open {vault} in Obsidian")
